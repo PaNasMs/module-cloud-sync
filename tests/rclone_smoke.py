@@ -36,6 +36,6 @@ with tempfile.TemporaryDirectory(prefix='cloud-sync-smoke-') as tmp:
             if direction != 'both':
                 c.run_task(db, task)
                 assert (dest / 'file.txt').exists(), 'one-way unexpectedly propagated deletion'
-                assert any(p.read_text() == 'first' for p in (dest / '.ostojaos-cloud-versions').rglob('file.txt'))
+                assert any(p.read_text() == 'first' for p in (dest / '.panasms-cloud-versions').rglob('file.txt'))
         print(direction + ': real rclone transfer verified')
     db.close()

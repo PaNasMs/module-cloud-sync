@@ -1,8 +1,8 @@
-# OstojaOS Cloud Sync module
+# PaNasMs Cloud Sync module
 
 Synchronize local folders with multiple Google Drive and Dropbox accounts.
 
-Standalone source repository. Requires OstojaOS core `>=0.2.1,<0.3.0`, module API 1.
+Standalone source repository. Requires PaNasMs core `>=0.2.1,<0.3.0`, module API 1.
 Frontend: React / TypeScript. Server: Go with the versioned module SDK.
 Python helpers run through the host management interface where applicable.
 
@@ -14,7 +14,7 @@ The registry signs it separately; unsigned payloads cannot be installed directly
 
 Update manifest.json and package.json versions, commit and push a matching `vX.Y.Z`
 tag. CI tests and builds the source and publishes an immutable GitHub Release.
-OstojaOS/module-registry periodically imports official releases, signs installable
+PaNasMs/module-registry periodically imports official releases, signs installable
 archives and publishes them in the catalog. No signing key is available here.
 Never replace a published version; issue a new patch version instead.
 

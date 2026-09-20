@@ -50,7 +50,7 @@ jobs:
           if gh release view "$TAG" --json isDraft --jq .isDraft > draft.txt 2>/dev/null; then
             test "$(cat draft.txt)" = true || exit 0
           else
-            gh release create "$TAG" --verify-tag --draft --title "$TAG" --notes 'ARM64 build payload. Install the signed package from the OstojaOS module registry.'
+            gh release create "$TAG" --verify-tag --draft --title "$TAG" --notes 'ARM64 build payload. Install the signed package from the PaNasMs module registry.'
           fi
           gh release upload "$TAG" payload/*.unsigned.zip --clobber
           gh release edit "$TAG" --draft=false

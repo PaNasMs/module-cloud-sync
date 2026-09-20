@@ -1,5 +1,5 @@
-github.com/OstojaOS/module-sdk v0.1.0 h1:Sr/Zej6DJYHgacOv6lBPVoN6khmmEML7u8eumyCWJYU=
-github.com/OstojaOS/module-sdk v0.1.0/go.mod h1:9rZhjwqGKw6Yvp8/nLKd5qlXRm4QgyRbFf6hJK+2k6c=
+github.com/PaNasMs/module-sdk v0.0.0-20260920205805-690be9f9c46e h1:j4SRuFkFHxXvkF6YhTkgWfb48hK2aLUyMO6b1gILWG0=
+github.com/PaNasMs/module-sdk v0.0.0-20260920205805-690be9f9c46e/go.mod h1:vNMaLVCHbahLGQZjzcJEFSvop9PxNlYFXFEIBzWyw8k=
 github.com/msteinert/pam/v2 v2.1.0 h1:er5F9TKV5nGFuTt12ubtqPHEUdeBwReP7vd3wovidGY=
 github.com/msteinert/pam/v2 v2.1.0/go.mod h1:KT28NNIcDFf3PcBmNI2mIGO4zZJ+9RSs/At2PB3IDVc=
 golang.org/x/sys v0.48.0 h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=

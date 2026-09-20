@@ -16,8 +16,8 @@
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
     "paths": {
-      "@ostojaos/*": [
-        "./node_modules/@ostojaos/module-sdk/types/*"
+      "@panasms/*": [
+        "./node_modules/@panasms/module-sdk/types/*"
       ]
     }
   },

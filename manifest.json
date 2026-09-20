@@ -6,7 +6,7 @@
   "api": 1,
   "core": ">=0.2.1,<0.3.0",
   "architecture": "arm64",
-  "signer": "ostojaos-ci",
+  "signer": "panasms-ci",
   "service": "bin/server",
   "dependencies": {},
   "packages": {

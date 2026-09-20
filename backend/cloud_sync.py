@@ -293,7 +293,7 @@ class Watcher:
     def add_tree(self, path, task):
         count = 0
         for folder, dirs, _ in os.walk(path, followlinks=False):
-            dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(folder,d)) and not d.startswith('.ostojaos-cloud-')]
+            dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(folder,d)) and not d.startswith('.panasms-cloud-')]
             wd = self.lib.inotify_add_watch(self.fd, os.fsencode(folder), 0x2 | 0x4 | 0x8 | 0x40 | 0x80 | 0x100 | 0x200 | 0x400 | 0x800 | 0x2000)
             check(wd >= 0, 'Local watch limit reached; increase inotify limits before resuming')
             self.paths[wd] = task
@@ -340,8 +340,8 @@ def run_task(db, task):
         source,dest = (task['local'],target) if task['direction']=='upload' else (target,task['local'])
         # One-way prototype uses copy: deletions are never propagated.
         args = ['copy',source,dest,'--create-empty-src-dirs','--backup-dir',
-                (target.rstrip('/') + '/.ostojaos-cloud-versions/' if task['direction']=='upload' else task['local']+'/.ostojaos-cloud-versions/') + str(int(time.time())) + '-' + uuid.uuid4().hex[:8]]
-    args += ['--exclude','.ostojaos-cloud-versions/**','--exclude','.ostojaos-cloud-conflicts/**','--transfers','2','--checkers','2']
+                (target.rstrip('/') + '/.panasms-cloud-versions/' if task['direction']=='upload' else task['local']+'/.panasms-cloud-versions/') + str(int(time.time())) + '-' + uuid.uuid4().hex[:8]]
+    args += ['--exclude','.panasms-cloud-versions/**','--exclude','.panasms-cloud-conflicts/**','--transfers','2','--checkers','2']
     def cancelled():
         current = db.execute('SELECT paused FROM tasks WHERE id=?',(task['id'],)).fetchone()
         return not current or current['paused']

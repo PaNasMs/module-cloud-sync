@@ -41,7 +41,7 @@
   "upload": "NAS → cloud",
   "both": "Two-way",
   "bothHelp": "For initial two-way sync, one folder must be empty. Later deletions propagate in both directions; large deletion batches stop the task. Conflicting versions are preserved.",
-  "copyHelp": "This prototype copies new and changed files without propagating deletions. Replaced destination files are kept in .ostojaos-cloud-versions.",
+  "copyHelp": "This prototype copies new and changed files without propagating deletions. Replaced destination files are kept in .panasms-cloud-versions.",
   "create": "Create task",
   "removeConfirm": "Remove this connection or task?",
   "preserveFiles": "Your local and cloud files will be preserved.",

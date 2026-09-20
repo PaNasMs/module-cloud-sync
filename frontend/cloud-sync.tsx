@@ -1,4 +1,4 @@
-import { DialogContent, WaitingSurface } from "@ostojaos/ui";
+import { DialogContent, WaitingSurface } from "@panasms/ui";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -20,15 +20,15 @@ import {
   mdiDownload,
   mdiAlertCircleOutline,
 } from "@mdi/js";
-import { Button, Icon, Notice } from "@ostojaos/ui";
-import { registerModule } from "@ostojaos/runtime";
-import { request } from "@ostojaos/client";
-import { useQueryValue } from "@ostojaos/navigation";
+import { Button, Icon, Notice } from "@panasms/ui";
+import { registerModule } from "@panasms/runtime";
+import { request } from "@panasms/client";
+import { useQueryValue } from "@panasms/navigation";
 import {
   registerTranslations,
   registerServerMessages,
   translator,
-} from "@ostojaos/i18n";
+} from "@panasms/i18n";
 import messages from "./server-messages.json";
 import en from "./locales/en.json";
 import ru from "./locales/ru.json";
@@ -431,7 +431,7 @@ export function CloudSyncPage() {
                   {tr("helper")}
                 </a>
                 <code className="cloud-helper">
-                  python3 ostojaos-cloud-authorize.py {provider}
+                  python3 panasms-cloud-authorize.py {provider}
                 </code>
                 <p className="muted small">{tr("helperHint")}</p>
                 <input

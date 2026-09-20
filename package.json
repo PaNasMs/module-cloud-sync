@@ -1,5 +1,5 @@
 {
-  "name": "@ostojaos/module-cloud-sync",
+  "name": "@panasms/module-cloud-sync",
   "private": true,
   "version": "0.1.4",
   "type": "module",
@@ -33,7 +33,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "vite": "^8.3.0",
-    "@ostojaos/module-sdk": "https://github.com/OstojaOS/module-sdk/archive/d97da77c6b11746fb10a3e6571a5541830496632.tar.gz"
+    "@panasms/module-sdk": "https://github.com/PaNasMs/module-sdk/archive/690be9f9c46ec38cc2dd5c311e32a4cb6de22c42.tar.gz"
   },
   "engines": {
     "node": ">=22.12.0",
