@@ -1,3 +1,4 @@
+import { DialogContent, WaitingSurface } from "@ostojaos/ui";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -154,7 +155,7 @@ export function CloudSyncPage() {
   const taskName = (id: string) =>
     state.tasks.find((t) => t.id === id)?.name ?? tr("removedTask");
   return (
-    <>
+    <WaitingSurface busy={busy && !dialog && !confirm}>
       <div className="page-heading">
         <div>
           <h1>{tr("title")}</h1>
@@ -363,7 +364,7 @@ export function CloudSyncPage() {
       >
         <Dialog.Portal>
           <Dialog.Overlay className="dialog-overlay" />
-          <Dialog.Content className="settings-dialog cloud-sync-dialog">
+          <DialogContent busy={busy} className="settings-dialog cloud-sync-dialog">
             <div className="page-heading">
               <Dialog.Title>
                 {tr(dialog === "account" ? "addAccount" : "addTask")}
@@ -569,7 +570,7 @@ export function CloudSyncPage() {
                 </div>
               </form>
             )}
-          </Dialog.Content>
+          </DialogContent>
         </Dialog.Portal>
       </Dialog.Root>
       <Dialog.Root
@@ -580,7 +581,7 @@ export function CloudSyncPage() {
       >
         <Dialog.Portal>
           <Dialog.Overlay className="dialog-overlay" />
-          <Dialog.Content className="settings-dialog cloud-sync-dialog">
+          <DialogContent busy={busy} className="settings-dialog cloud-sync-dialog">
             <Dialog.Title>{tr("removeConfirm")}</Dialog.Title>
             <Dialog.Description>{tr("preserveFiles")}</Dialog.Description>
             <div className="actions">
@@ -594,10 +595,10 @@ export function CloudSyncPage() {
                 {tr("cancel")}
               </Button>
             </div>
-          </Dialog.Content>
+          </DialogContent>
         </Dialog.Portal>
       </Dialog.Root>
-    </>
+    </WaitingSurface>
   );
 }
 registerModule({
