@@ -1,8 +1,8 @@
 {
   "id": "cloud-sync",
   "title": "Cloud Sync",
-  "description": "Synchronize local folders with multiple Google Drive and Dropbox accounts.",
-  "version": "0.1.5",
+  "description": "Synchronize local folders with multiple Google Drive accounts.",
+  "version": "0.1.6",
   "api": 1,
   "core": ">=0.2.1,<0.3.0",
   "architecture": "arm64",
@@ -11,7 +11,6 @@
   "dependencies": {},
   "packages": {
     "rclone": "1.60",
-    "python3": "3.11",
     "libc6": "2.34",
     "libpam0g": "1.4.0",
     "systemd": "252"
@@ -20,15 +19,15 @@
   "translations": {
     "en": {
       "title": "Cloud Sync",
-      "description": "Synchronize local folders with multiple Google Drive and Dropbox accounts."
+      "description": "Synchronize local folders with multiple Google Drive accounts."
     },
     "ru": {
       "title": "Облачная синхронизация",
-      "description": "Синхронизация папок с несколькими аккаунтами Google Drive и Dropbox."
+      "description": "Синхронизация папок с несколькими аккаунтами Google Drive."
     },
     "uk": {
       "title": "Хмарна синхронізація",
-      "description": "Синхронізація папок із кількома обліковими записами Google Drive і Dropbox."
+      "description": "Синхронізація папок із кількома обліковими записами Google Drive."
     }
   }
 }

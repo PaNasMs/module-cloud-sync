@@ -102,5 +102,65 @@
   {
     "key": "server25",
     "en": "Two-way sync history requires recovery. Preserve both folders and create a new task with an empty destination; automatic reset is disabled."
+  },
+  {
+    "key": "goServer0",
+    "en": "Reconnect this account to grant Drive access"
+  },
+  {
+    "key": "goServer1",
+    "en": "Drive access is unavailable. Reconnect this account or restore its permission."
+  },
+  {
+    "key": "goServer2",
+    "en": "Cloud access service is unavailable; retrying later."
+  },
+  {
+    "key": "goServer3",
+    "en": "Cloud Sync operation failed. Check the connection and try again."
+  },
+  {
+    "key": "goServer4",
+    "en": "Task is unavailable or still running. Pause it and wait for the transfer to stop."
+  },
+  {
+    "key": "goServer5",
+    "en": "This cloud account is already connected. Reconnect the existing connection."
+  },
+  {
+    "key": "goServer6",
+    "en": "Cannot monitor local files; check folder permissions."
+  },
+  {
+    "key": "goServer7",
+    "en": "Local watch limit reached; increase inotify limits before resuming"
+  },
+  {
+    "key": "goServer8",
+    "en": "Filesystem event queue overflowed. Resume tasks to rebuild monitoring."
+  },
+  {
+    "key": "goServer9",
+    "en": "This permission is read-only. Authorize full Drive access before uploading."
+  },
+  {
+    "key": "goServer10",
+    "en": "Enable Google Drive API in the NAS Google Cloud project, then reconnect this account."
+  },
+  {
+    "key": "folderServer0",
+    "en": "Invalid local folder"
+  },
+  {
+    "key": "folderServer1",
+    "en": "Choose an accessible local folder without symlinks"
+  },
+  {
+    "key": "folderServer2",
+    "en": "Invalid folder name"
+  },
+  {
+    "key": "folderServer3",
+    "en": "Cannot create folder. Check permissions and whether the name already exists."
   }
 ]

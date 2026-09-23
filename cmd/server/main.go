@@ -5,15 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/PaNasMs/module-cloud-sync/internal/syncer"
+	"github.com/PaNasMs/module-sdk/auth"
+	"github.com/PaNasMs/module-sdk/modulehost"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"os/user"
-	"github.com/PaNasMs/module-sdk/auth"
-	"github.com/PaNasMs/module-sdk/modulehost"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -26,8 +28,9 @@ const stateRoot = "/var/lib/panasms-cloud-sync"
 
 var busy atomic.Int32
 var workerMu sync.Mutex
-var workers = map[string]bool{}
-var script string
+var workers = map[string]*exec.Cmd{}
+var executablePath string
+var workerAllowed map[string]bool
 
 func process(ctx context.Context, account *user.User, mode string) (*exec.Cmd, error) {
 	uid, err := strconv.Atoi(account.Uid)
@@ -45,38 +48,79 @@ func process(ctx context.Context, account *user.User, mode string) (*exec.Cmd, e
 	if err = os.Chown(dir, uid, gid); err != nil {
 		return nil, err
 	}
-	cmd := exec.CommandContext(ctx, "/usr/bin/systemd-run", "--quiet", "--collect", "--wait", "--pipe",
-		"--unit=panasms-cloud-sync-user-"+account.Uid,
-		"--uid="+account.Uid, "--gid="+account.Gid,
-		"--property=BindsTo=panasms-module-cloud-sync.service",
-		"--property=After=panasms-module-cloud-sync.service",
-		"--property=KillMode=control-group", "--property=UMask=0077", "--property=NoNewPrivileges=yes",
-		"--setenv=HOME="+dir, "--setenv=XDG_CACHE_HOME="+dir+"/cache", "--setenv=LANG=C.UTF-8",
-		"/usr/bin/python3", "-B", script, mode, dir)
+	groupStrings, err := account.GroupIds()
+	if err != nil {
+		return nil, err
+	}
+	groups := make([]uint32, 0, len(groupStrings))
+	for _, g := range groupStrings {
+		if n, e := strconv.Atoi(g); e == nil {
+			groups = append(groups, uint32(n))
+		}
+	}
+	if err = os.MkdirAll("/run/panasms-cloud-sync", 0711); err != nil {
+		return nil, err
+	}
+	if err = os.Chmod("/run/panasms-cloud-sync", 0711); err != nil {
+		return nil, err
+	}
+	runtime := filepath.Join("/run/panasms-cloud-sync", account.Uid)
+	if err = os.MkdirAll(runtime, 0700); err != nil {
+		return nil, err
+	}
+	if err = os.Chown(runtime, uid, gid); err != nil {
+		return nil, err
+	}
+	parent, child, err := grantPair(account.Username, workerAllowed)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.CommandContext(ctx, executablePath, "worker", dir, runtime, account.Username)
+	cmd.ExtraFiles = []*os.File{child}
+	go relayGrants(parent, account.Username, workerAllowed)
 	cmd.Stderr = os.Stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGTERM}
+	cmd.Env = []string{"HOME=" + dir, "XDG_CACHE_HOME=" + dir + "/cache", "LANG=C.UTF-8", "PATH=/usr/bin:/bin"}
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Pdeathsig:  syscall.SIGTERM,
+		Setpgid:    true,
+		Credential: &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid), Groups: groups},
+	}
 	return cmd, nil
 }
 func startWorker(account *user.User) {
 	workerMu.Lock()
 	defer workerMu.Unlock()
-	if workers[account.Uid] {
+	if _, exists := workers[account.Uid]; exists {
 		return
 	}
-	workers[account.Uid] = true
+	workers[account.Uid] = nil
 	go func() {
 		defer func() { workerMu.Lock(); delete(workers, account.Uid); workerMu.Unlock() }()
 		cmd, err := process(context.Background(), account, "worker")
 		if err != nil {
 			return
 		}
+		defer func() {
+			for _, f := range cmd.ExtraFiles {
+				f.Close()
+			}
+		}()
 		pipe, err := cmd.StdoutPipe()
 		if err != nil {
 			return
 		}
 		if err = cmd.Start(); err != nil {
+			for _, f := range cmd.ExtraFiles {
+				f.Close()
+			}
 			return
 		}
+		for _, f := range cmd.ExtraFiles {
+			f.Close()
+		}
+		workerMu.Lock()
+		workers[account.Uid] = cmd
+		workerMu.Unlock()
 		running := false
 		scanner := bufio.NewScanner(pipe)
 		for scanner.Scan() {
@@ -108,7 +152,27 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	script = filepath.Join(filepath.Dir(executable), "../backend/cloud_sync.py")
+	executablePath = executable
+	if len(os.Args) > 1 && os.Args[1] == "worker" {
+		if len(os.Args) != 5 {
+			log.Fatal("Invalid worker arguments")
+		}
+		broker, err := workerBroker(os.NewFile(3, "grants"))
+		if err != nil {
+			log.Fatal("Grant channel unavailable")
+		}
+		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+		defer cancel()
+		engine, err := syncer.Open(os.Args[2], os.Args[3], os.Args[4], broker)
+		if err != nil {
+			log.Fatal("Cannot open Cloud Sync state")
+		}
+		defer engine.Close()
+		if err = engine.Serve(ctx, func(active bool) { _ = json.NewEncoder(os.Stdout).Encode(map[string]bool{"busy": active}) }); err != nil {
+			log.Fatal("Cloud Sync worker failed")
+		}
+		return
+	}
 	if err = os.MkdirAll(stateRoot, 0711); err != nil {
 		log.Fatal(err)
 	}
@@ -116,6 +180,7 @@ func main() {
 		log.Fatal(err)
 	}
 	modulehost.ServeWithActivity("cloud-sync", func() int32 { return busy.Load() }, func(allowed map[string]bool) http.Handler {
+		workerAllowed = allowed
 		go func() {
 			for {
 				dirs, _ := os.ReadDir(stateRoot)
@@ -132,6 +197,19 @@ func main() {
 						startWorker(account)
 					}
 				}
+				workerMu.Lock()
+				for uid, cmd := range workers {
+					a, err := user.LookupId(uid)
+					valid := false
+					if err == nil {
+						id, e := auth.Lookup(a.Username, allowed)
+						valid = e == nil && id.Role == "admin"
+					}
+					if !valid && cmd != nil {
+						_ = cmd.Process.Signal(syscall.SIGTERM)
+					}
+				}
+				workerMu.Unlock()
 				time.Sleep(10 * time.Second)
 			}
 		}()
@@ -151,8 +229,8 @@ func main() {
 				return
 			}
 			if r.URL.Path == "/authorize-helper" && r.Method == "GET" {
-				w.Header().Set("Content-Disposition", `attachment; filename="panasms-cloud-authorize.py"`)
-				http.ServeFile(w, r, filepath.Join(filepath.Dir(script), "authorize.py"))
+				w.Header().Set("Content-Disposition", `attachment; filename="panasms-cloud-authorize.go"`)
+				http.ServeFile(w, r, filepath.Join(filepath.Dir(executablePath), "../backend/authorize.go"))
 				return
 			}
 			if (r.URL.Path == "/state" && r.Method != "GET") || (r.URL.Path == "/action" && r.Method != "POST") {

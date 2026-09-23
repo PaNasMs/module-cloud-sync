@@ -1,7 +1,7 @@
 {
   "name": "@panasms/module-cloud-sync",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.6",
   "type": "module",
   "scripts": {
     "build": "tsc && vite build",
@@ -25,6 +25,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@panasms/module-sdk": "https://github.com/PaNasMs/module-sdk/archive/30645fd7567e65aa9c656c2886f909ecd7bf82ba.tar.gz",
     "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -32,8 +33,7 @@
     "prettier": "3.6.2",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
-    "vite": "^8.3.0",
-    "@panasms/module-sdk": "https://github.com/PaNasMs/module-sdk/archive/690be9f9c46ec38cc2dd5c311e32a4cb6de22c42.tar.gz"
+    "vite": "^8.3.0"
   },
   "engines": {
     "node": ">=22.12.0",

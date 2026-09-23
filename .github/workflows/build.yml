@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - run: sudo apt-get update && sudo apt-get install -y libpam0g-dev
+      - run: sudo apt-get update && sudo apt-get install -y libpam0g-dev rclone
       - run: sh scripts/build.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

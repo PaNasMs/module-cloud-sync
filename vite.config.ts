@@ -18,6 +18,7 @@ for (const name of [
   'client',
   'i18n',
   'navigation',
+  'external',
 ])
   shared['@panasms/' + name] = 'PaNasMsSDK.' + name
 export default defineConfig({
