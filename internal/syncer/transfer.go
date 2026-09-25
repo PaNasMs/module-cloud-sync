@@ -19,6 +19,11 @@ var errPaused = errors.New("task paused")
 
 const recoveryMessage = "Two-way sync history requires recovery. Preserve both folders and create a new task with an empty destination; automatic reset is disabled."
 
+// maxDelete bounds how many deletions bisync will propagate in one pass. High
+// enough to let deliberate bulk reorganizations sync through, low enough to
+// still stop a run where a side has effectively vanished.
+const maxDelete = "5000"
+
 type Runner func(context.Context, Account, []string, func() error) ([]byte, error)
 type limitedBuffer struct {
 	sync.Mutex
@@ -175,7 +180,7 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 				return problem("For the first two-way sync, one folder must be empty. Use a new folder to avoid initial conflicts.")
 			}
 		}
-		args = []string{"bisync", t.Local, target, "--workdir", work, "--max-delete", "10"}
+		args = []string{"bisync", t.Local, target, "--workdir", work, "--max-delete", maxDelete}
 		if t.Initialized == 0 {
 			args = append(args, "--resync")
 			if _, err = e.DB.Exec("UPDATE tasks SET initialized=-1 WHERE id=?", t.ID); err != nil {
