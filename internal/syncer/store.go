@@ -33,6 +33,7 @@ type Task struct {
 	Remote      string `json:"remote"`
 	Direction   string `json:"direction"`
 	Mount       string `json:"mount"`
+	Recovery    string `json:"recovery"`
 	Paused      int    `json:"paused"`
 	Status      string `json:"status"`
 	Dirty       int    `json:"dirty"`
@@ -97,6 +98,7 @@ type Engine struct {
 	tokens               map[string]lease
 	HTTP                 HTTPClient
 	Runner               Runner
+	recoveryCheck        time.Time
 	Mount                func(string) (string, error)
 	Local                func(string) (string, error)
 }
@@ -145,6 +147,19 @@ func Open(root, runtime, owner string, broker Broker) (*Engine, error) {
 			}
 		}
 	}
+	var recoveryColumn int
+	if err = db.QueryRow("SELECT count(*) FROM pragma_table_info('tasks') WHERE name='recovery'").Scan(&recoveryColumn); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if recoveryColumn == 0 {
+		_, err = db.Exec(`ALTER TABLE tasks ADD COLUMN recovery TEXT NOT NULL DEFAULT '';
+UPDATE tasks SET recovery='volume' WHERE paused=1 AND status='error' AND error='Local volume changed or is unavailable';`)
+		if err != nil {
+			db.Close()
+			return nil, err
+		}
+	}
 	e := &Engine{DB: db, Root: root, Runtime: runtime, Owner: owner, Broker: broker, tokens: map[string]lease{}, HTTP: defaultHTTP(), Mount: mountIdentity, Local: localFolder}
 	e.Runner = e.runProcess
 	return e, nil
@@ -179,7 +194,7 @@ func (e *Engine) account(id string) (Account, error) {
 	return Account{}, problem("Account not found")
 }
 func (e *Engine) tasks() ([]Task, error) {
-	rows, err := e.DB.Query("SELECT id,account,name,local,remote,direction,mount,paused,status,dirty,initialized,snapshot,error,last_sync FROM tasks ORDER BY last_sync")
+	rows, err := e.DB.Query("SELECT id,account,name,local,remote,direction,mount,paused,status,dirty,initialized,snapshot,error,last_sync,recovery FROM tasks ORDER BY last_sync")
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +202,7 @@ func (e *Engine) tasks() ([]Task, error) {
 	out := []Task{}
 	for rows.Next() {
 		var t Task
-		if err = rows.Scan(&t.ID, &t.Account, &t.Name, &t.Local, &t.Remote, &t.Direction, &t.Mount, &t.Paused, &t.Status, &t.Dirty, &t.Initialized, &t.Snapshot, &t.Error, &t.LastSync); err != nil {
+		if err = rows.Scan(&t.ID, &t.Account, &t.Name, &t.Local, &t.Remote, &t.Direction, &t.Mount, &t.Paused, &t.Status, &t.Dirty, &t.Initialized, &t.Snapshot, &t.Error, &t.LastSync, &t.Recovery); err != nil {
 			return nil, err
 		}
 		out = append(out, t)

@@ -24,7 +24,11 @@ func (e *Engine) initialize() error {
 }
 func (e *Engine) pauseError(id string, err error) {
 	message := safeError(err)
-	_, _ = e.DB.Exec("UPDATE tasks SET paused=1,status='error',error=? WHERE id=?", message, id)
+	recovery := ""
+	if message == "Local volume changed or is unavailable" || message == "Local volume changed or is unavailable; reconnect the original volume" {
+		recovery = "volume"
+	}
+	_, _ = e.DB.Exec("UPDATE tasks SET paused=1,status='error',error=?,recovery=? WHERE id=?", message, recovery, id)
 	_ = e.event(id, "error", message)
 }
 func (e *Engine) monitor(ctx context.Context) {
@@ -95,11 +99,38 @@ func (e *Engine) monitor(ctx context.Context) {
 		}
 	}
 }
+func (e *Engine) recoverVolumes() {
+	if time.Now().Before(e.recoveryCheck) {
+		return
+	}
+	e.recoveryCheck = time.Now().Add(30 * time.Second)
+	tasks, err := e.tasks()
+	if err != nil {
+		return
+	}
+	for _, t := range tasks {
+		var recovery string
+		if e.DB.QueryRow("SELECT recovery FROM tasks WHERE id=?", t.ID).Scan(&recovery) != nil || recovery != "volume" {
+			continue
+		}
+		m, err := e.Mount(t.Local)
+		if err != nil || !sameMount(m, t.Mount) {
+			continue
+		}
+		if _, err = e.Local(t.Local); err != nil {
+			continue
+		}
+		// The conditional update preserves a manual pause applied during the checks.
+		_, _ = e.DB.Exec("UPDATE tasks SET paused=0,dirty=1,status='queued',error='',recovery='' WHERE id=? AND recovery='volume' AND paused=1 AND status='error'", t.ID)
+	}
+}
+
 func (e *Engine) cycle(ctx context.Context, next map[string]time.Time, failures map[string]int, busy func(bool)) {
 	if !e.cloudMu.TryLock() {
 		return
 	}
 	defer e.cloudMu.Unlock()
+	e.recoverVolumes()
 	accounts, err := e.accounts()
 	if err != nil {
 		return
@@ -114,18 +145,15 @@ func (e *Engine) cycle(ctx context.Context, next map[string]time.Time, failures 
 		for _, t := range tasks {
 			needed = needed || (t.Account == a.ID && t.Paused == 0)
 		}
-		if !needed {
-			continue
-		}
 		if time.Now().Before(next[a.ID]) {
 			blocked[a.ID] = a.Error != ""
 			continue
 		}
 		pollCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		_, err = e.ensure(pollCtx, a, true)
-		cursor := ""
+		cursor := a.Cursor
 		changed := false
-		if err == nil {
+		if err == nil && needed {
 			cursor, changed, err = e.poll(pollCtx, a)
 		}
 		dirty := []string{}
@@ -154,7 +182,7 @@ func (e *Engine) cycle(ctx context.Context, next map[string]time.Time, failures 
 			var f *Failure
 			if errors.As(err, &f) && f.Reconnect {
 				for _, t := range tasks {
-					if t.Account == a.ID {
+					if t.Account == a.ID && t.Paused == 0 {
 						e.pauseError(t.ID, err)
 					}
 				}

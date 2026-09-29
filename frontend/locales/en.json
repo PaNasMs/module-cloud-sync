@@ -119,5 +119,6 @@
   "volumes": "Volumes and devices",
   "expandFolder": "Expand folder",
   "collapseFolder": "Collapse folder",
-  "unavailableVolume": "Unavailable for Cloud Sync. Choose a local Linux data volume or your home folder."
+  "unavailableVolume": "Unavailable for Cloud Sync. Choose a local Linux data volume or your home folder.",
+  "waitingVolume": "Waiting for the original volume; retrying automatically"
 }

@@ -108,3 +108,16 @@ signs and publishes it. Never overwrite an existing signed version.
 Original code: [PolyForm Noncommercial 1.0.0](LICENSE).
 See [NOTICE](NOTICE) for third-party components. Go SDK and SQLite dependencies
 retain their own licenses; rclone remains an independently installed dependency.
+
+### Automatic recovery
+
+Cloud access is rechecked even when all synchronization tasks are paused. Successful
+checks clear obsolete account errors without advancing the Drive change cursor
+for paused tasks. Failed checks use exponential backoff (up to 30 minutes).
+
+Tasks stopped because their local volume disappeared are checked every 30 seconds.
+They resume only when the saved mount identity matches and the original directory
+is accessible. A different volume never becomes an automatic replacement. Manual
+pause cancels automatic recovery; other task failures still require review.
+Existing volume-unavailable errors are adopted by this recovery mechanism on the
+first upgrade. No folders are created to substitute for a missing volume.

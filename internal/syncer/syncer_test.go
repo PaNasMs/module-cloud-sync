@@ -503,3 +503,71 @@ func TestBlockMountNamesMatchFileManager(t *testing.T) {
 		t.Fatalf("wrong mount labels: %+v", names)
 	}
 }
+
+func TestVolumeRecoveryPreservesManualPauseAndWrongMount(t *testing.T) {
+	e := fixture(t)
+	task := addTask(t, e, "download")
+	e.pauseError(task.ID, problem("Local volume changed or is unavailable"))
+	e.Mount = func(string) (string, error) { return "wrong-volume", nil }
+	e.recoverVolumes()
+	tasks, _ := e.tasks()
+	if tasks[0].Paused != 1 {
+		t.Fatal("resumed on different volume")
+	}
+	e.Mount = func(string) (string, error) { return mount, nil }
+	e.recoveryCheck = time.Time{}
+	e.recoverVolumes()
+	tasks, _ = e.tasks()
+	if tasks[0].Paused != 0 || tasks[0].Status != "queued" || tasks[0].Dirty != 1 {
+		t.Fatal("did not recover", tasks)
+	}
+	e.pauseError(task.ID, problem("Local volume changed or is unavailable"))
+	if _, err := e.taskAction("task.pause", task.ID); err != nil {
+		t.Fatal(err)
+	}
+	e.recoveryCheck = time.Time{}
+	e.recoverVolumes()
+	tasks, _ = e.tasks()
+	if tasks[0].Paused != 1 {
+		t.Fatal("overrode manual pause")
+	}
+}
+
+func TestPausedAccountHealthDoesNotPollOrAdvanceCursor(t *testing.T) {
+	e := fixture(t)
+	task := addTask(t, e, "download")
+	_, err := e.DB.Exec("UPDATE accounts SET provider='drive',grant_id=?,owner='owner',error='stale'", strings.Repeat("a", 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.taskAction("task.pause", task.ID)
+	calls := 0
+	e.Broker = func(context.Context, string) (external.Access, error) {
+		calls++
+		return external.Access{}, errors.New("offline")
+	}
+	next := map[string]time.Time{}
+	failures := map[string]int{}
+	e.cycle(context.Background(), next, failures, func(bool) { t.Fatal("transfer while paused") })
+	e.cycle(context.Background(), next, failures, func(bool) {})
+	if calls != 1 {
+		t.Fatal("retry backoff ignored", calls)
+	}
+	e.Broker = func(context.Context, string) (external.Access, error) {
+		return external.Access{AccessToken: "test", TokenType: "Bearer", ExpiresAt: time.Now().Add(time.Hour)}, nil
+	}
+	e.Runner = func(context.Context, Account, []string, func() error) ([]byte, error) {
+		t.Fatal("paused account polled")
+		return nil, nil
+	}
+	delete(next, accountID)
+	e.cycle(context.Background(), next, failures, func(bool) {})
+	accounts, _ := e.accounts()
+	if accounts[0].Error != "" || accounts[0].Cursor != "cursor" {
+		t.Fatal(accounts)
+	}
+	tasks, _ := e.tasks()
+	if tasks[0].Paused != 1 {
+		t.Fatal("manual pause changed")
+	}
+}

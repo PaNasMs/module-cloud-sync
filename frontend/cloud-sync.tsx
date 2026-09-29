@@ -56,6 +56,7 @@ type Task = {
   remote: string;
   direction: string;
   paused: number;
+  recovery?: string;
   status: string;
   error: string;
   last_sync: number;
@@ -518,21 +519,32 @@ export function CloudSyncPage() {
                         <>
                           <Button
                             disabled={busy}
-                            title={tr(selectedTask.paused ? "resume" : "pause")}
+                            title={tr(
+                              selectedTask.paused && !selectedTask.recovery
+                                ? "resume"
+                                : "pause",
+                            )}
                             aria-label={tr(
-                              selectedTask.paused ? "resume" : "pause",
+                              selectedTask.paused && !selectedTask.recovery
+                                ? "resume"
+                                : "pause",
                             )}
                             onClick={() =>
                               void perform({
-                                action: selectedTask.paused
-                                  ? "task.resume"
-                                  : "task.pause",
+                                action:
+                                  selectedTask.paused && !selectedTask.recovery
+                                    ? "task.resume"
+                                    : "task.pause",
                                 id: selectedTask.id,
                               })
                             }
                           >
                             <Icon
-                              path={selectedTask.paused ? mdiPlay : mdiPause}
+                              path={
+                                selectedTask.paused && !selectedTask.recovery
+                                  ? mdiPlay
+                                  : mdiPause
+                              }
                             />
                           </Button>
                           <Button
@@ -603,9 +615,11 @@ export function CloudSyncPage() {
                         <dt>{tr("status")}</dt>
                         <dd>
                           {tr(
-                            selectedTask.paused
-                              ? "paused"
-                              : selectedTask.status,
+                            selectedTask.recovery
+                              ? "waitingVolume"
+                              : selectedTask.paused
+                                ? "paused"
+                                : selectedTask.status,
                           )}
                         </dd>
                         <dt>{tr("lastSync")}</dt>
