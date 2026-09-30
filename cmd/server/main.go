@@ -8,6 +8,7 @@ import (
 	"github.com/PaNasMs/module-cloud-sync/internal/syncer"
 	"github.com/PaNasMs/module-sdk/auth"
 	"github.com/PaNasMs/module-sdk/modulehost"
+	"github.com/PaNasMs/module-sdk/userfiles"
 	"io"
 	"log"
 	"net"
@@ -157,6 +158,11 @@ func main() {
 		if len(os.Args) != 5 {
 			log.Fatal("Invalid worker arguments")
 		}
+		mask, err := userfiles.DefaultUmask()
+		if err != nil {
+			log.Fatal(err)
+		}
+		syscall.Umask(mask)
 		broker, err := workerBroker(os.NewFile(3, "grants"))
 		if err != nil {
 			log.Fatal("Grant channel unavailable")

@@ -110,7 +110,15 @@ func Open(root, runtime, owner string, broker Broker) (*Engine, error) {
 	if err := os.MkdirAll(runtime, 0700); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite3", "file:"+filepath.Join(root, "state.db")+"?_busy_timeout=15000&_journal_mode=WAL&_synchronous=FULL&_foreign_keys=on")
+	statePath := filepath.Join(root, "state.db")
+	state, err := os.OpenFile(statePath, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return nil, err
+	}
+	if err = state.Close(); err != nil {
+		return nil, err
+	}
+	db, err := sql.Open("sqlite3", "file:"+statePath+"?_busy_timeout=15000&_journal_mode=WAL&_synchronous=FULL&_foreign_keys=on")
 	if err != nil {
 		return nil, err
 	}

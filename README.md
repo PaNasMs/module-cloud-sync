@@ -121,3 +121,12 @@ is accessible. A different volume never becomes an automatic replacement. Manual
 pause cancels automatic recovery; other task failures still require review.
 Existing volume-unavailable errors are adopted by this recovery mechanism on the
 first upgrade. No folders are created to substitute for a missing volume.
+
+### Permissions of user files
+
+New user files and directories use the system `UMASK` from `/etc/login.defs`
+(`022` if unset), rather than the private service mask. Ownership remains with
+the Linux user running the operation. Parent-directory setgid and default ACLs
+still apply; existing files are not changed. Private module state and credentials
+retain restrictive permissions. Terminal startup scripts can override the initial
+shell mask.

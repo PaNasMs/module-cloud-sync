@@ -571,3 +571,16 @@ func TestPausedAccountHealthDoesNotPollOrAdvanceCursor(t *testing.T) {
 		t.Fatal("manual pause changed")
 	}
 }
+
+func TestPrivateStatePermissions(t *testing.T) {
+	e := fixture(t)
+	for _, name := range []string{"state.db", "state.db-wal", "state.db-shm", accountID + ".conf"} {
+		info, err := os.Stat(filepath.Join(e.Root, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm()&0077 != 0 {
+			t.Fatalf("private %s has mode %o", name, info.Mode().Perm())
+		}
+	}
+}
