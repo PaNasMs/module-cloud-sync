@@ -105,11 +105,11 @@
   },
   {
     "key": "goServer0",
-    "en": "Reconnect this account to grant Drive access"
+    "en": "Reconnect this account to grant cloud file access"
   },
   {
     "key": "goServer1",
-    "en": "Drive access is unavailable. Reconnect this account or restore its permission."
+    "en": "Cloud file access is unavailable. Reconnect this account or restore its permission."
   },
   {
     "key": "goServer2",
@@ -162,5 +162,9 @@
   {
     "key": "folderServer3",
     "en": "Cannot create folder. Check permissions and whether the name already exists."
+  },
+  {
+    "key": "permissionMismatch",
+    "en": "Cloud permission belongs to another provider or lacks file access"
   }
 ]

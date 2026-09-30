@@ -1,10 +1,10 @@
 {
   "id": "cloud-sync",
   "title": "Cloud Sync",
-  "description": "Synchronize local folders with multiple Google Drive accounts.",
-  "version": "0.1.9",
+  "description": "Synchronize selected folders with multiple Google Drive and Dropbox accounts.",
+  "version": "0.1.10",
   "api": 1,
-  "core": ">=0.2.1,<0.3.0",
+  "core": ">=0.2.8,<0.3.0",
   "architecture": "arm64",
   "signer": "panasms-ci",
   "service": "bin/server",
@@ -19,15 +19,15 @@
   "translations": {
     "en": {
       "title": "Cloud Sync",
-      "description": "Synchronize local folders with multiple Google Drive accounts."
+      "description": "Synchronize local folders with multiple Google Drive and Dropbox accounts."
     },
     "ru": {
       "title": "Облачная синхронизация",
-      "description": "Синхронизация папок с несколькими аккаунтами Google Drive."
+      "description": "Синхронизация папок с несколькими аккаунтами Google Drive и Dropbox."
     },
     "uk": {
       "title": "Хмарна синхронізація",
-      "description": "Синхронізація папок із кількома обліковими записами Google Drive."
+      "description": "Синхронізація папок із кількома обліковими записами Google Drive і Dropbox."
     }
   }
 }

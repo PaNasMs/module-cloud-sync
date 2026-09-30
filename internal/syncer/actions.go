@@ -105,7 +105,11 @@ func (e *Engine) Action(ctx context.Context, p map[string]any) (any, error) {
 			if overlap(local, t.Local) {
 				return nil, problem("Local sync folders must not overlap")
 			}
-			if a.ID == t.Account && overlap(remote, t.Remote) {
+			left, right := remote, t.Remote
+			if a.Provider == "dropbox" {
+				left, right = strings.ToLower(left), strings.ToLower(right)
+			}
+			if a.ID == t.Account && overlap(left, right) {
 				return nil, problem("Cloud sync folders must not overlap")
 			}
 		}

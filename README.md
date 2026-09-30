@@ -1,9 +1,7 @@
 # PaNasMs Cloud Sync
 
-Synchronize selected NAS and **Google Drive** folders with multiple accounts.
-Version **0.1.6**, module API 1, ARM64 Linux. Google connections require a core
-build exposing the external-grant API and `PaNasMsSDK.external` (September 22,
-2026 or later); the prototype core version alone does not identify this feature.
+Synchronize selected NAS, **Google Drive** and **Dropbox** folders with multiple
+accounts. Version **0.1.10**, module API 1, ARM64 Linux, core **0.2.8+**.
 
 ## Connect and synchronize
 
@@ -31,10 +29,19 @@ under the selected writable folder, using the Linux user's permissions and umask
 Select My Drive explicitly to synchronize its root. The Google permission is not
 restricted to that folder; the task configuration limits the sync operation.
 
-Dropbox is hidden from connection options pending implementation and acceptance
-testing. Existing legacy backend support and its developer helper are retained.
-Google refresh tokens and client credentials stay in core; the module only
-receives temporary access tokens.
+For Dropbox, configure the NAS client following the
+[Dropbox setup guide](https://panasms.github.io/docs/setup/dropbox/). Enable
+`account_info.read`, `files.metadata.read`, `files.content.read` and
+`files.content.write` in the Dropbox App Console. Link your Dropbox account in
+My profile, choose Dropbox in the connection wizard, then approve offline file
+access. Linking identity alone does not authorize file access. Multiple linked
+accounts are supported; Development apps may need additional users enabled.
+Choose the existing remote folder and a local folder before starting. File
+permissions apply to the account; the task limits which folder is synchronized.
+
+Both providers keep refresh tokens and client credentials encrypted in core;
+the module receives only temporary access tokens. Old imported Dropbox credentials
+require reconnection and are removed only after the replacement grant succeeds.
 
 Choose a direction:
 
@@ -63,8 +70,8 @@ Core access is relayed through an inherited private socket pair. The parent fixe
 the owner and rechecks access; unprivileged workers cannot open core's protected
 socket. OAuth consent uses the shared UI and
 [external-grant contract](https://github.com/PaNasMs/panasms/blob/main/documentation/external-grants.md).
-Temporary Google configs live under `/run/panasms-cloud-sync/<uid>`. Persistent
-SQLite, Dropbox configs and bisync state live under `/var/lib/panasms-cloud-sync/<uid>`.
+Temporary provider configs live under `/run/panasms-cloud-sync/<uid>`. Persistent
+SQLite and bisync state live under `/var/lib/panasms-cloud-sync/<uid>`.
 
 Permissions are rechecked during transfers, normally every 30 seconds. Revocation,
 permission-service errors, cancellation and volume loss stop and reap rclone.
@@ -112,7 +119,7 @@ retain their own licenses; rclone remains an independently installed dependency.
 ### Automatic recovery
 
 Cloud access is rechecked even when all synchronization tasks are paused. Successful
-checks clear obsolete account errors without advancing the Drive change cursor
+checks clear obsolete account errors without advancing the cloud change cursor
 for paused tasks. Failed checks use exponential backoff (up to 30 minutes).
 
 Tasks stopped because their local volume disappeared are checked every 30 seconds.

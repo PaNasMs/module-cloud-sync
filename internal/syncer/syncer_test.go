@@ -197,7 +197,7 @@ func TestGrantRechecksAndRevocationErasesRuntime(t *testing.T) {
 		if calls > 1 {
 			return external.Access{}, &external.Error{Status: 403, Code: "denied"}
 		}
-		return external.Access{AccessToken: "secret-access", TokenType: "Bearer", ExpiresAt: time.Now().Add(time.Hour)}, nil
+		return external.Access{AccessToken: "secret-access", Scope: "https://www.googleapis.com/auth/drive", TokenType: "Bearer", ExpiresAt: time.Now().Add(time.Hour)}, nil
 	}
 	if _, err := e.ensure(context.Background(), a, false); err != nil {
 		t.Fatal(err)
@@ -554,7 +554,7 @@ func TestPausedAccountHealthDoesNotPollOrAdvanceCursor(t *testing.T) {
 		t.Fatal("retry backoff ignored", calls)
 	}
 	e.Broker = func(context.Context, string) (external.Access, error) {
-		return external.Access{AccessToken: "test", TokenType: "Bearer", ExpiresAt: time.Now().Add(time.Hour)}, nil
+		return external.Access{AccessToken: "test", Scope: "https://www.googleapis.com/auth/drive", TokenType: "Bearer", ExpiresAt: time.Now().Add(time.Hour)}, nil
 	}
 	e.Runner = func(context.Context, Account, []string, func() error) ([]byte, error) {
 		t.Fatal("paused account polled")
@@ -582,5 +582,76 @@ func TestPrivateStatePermissions(t *testing.T) {
 		if info.Mode().Perm()&0077 != 0 {
 			t.Fatalf("private %s has mode %o", name, info.Mode().Perm())
 		}
+	}
+}
+
+func TestDropboxGrantRotationAndProviderIsolation(t *testing.T) {
+	e := fixture(t)
+	a := Account{ID: accountID, Provider: "dropbox", Grant: strings.Repeat("f", 32), Owner: "owner"}
+	scope := "account_info.read files.metadata.read files.content.read files.content.write"
+	token := "first"
+	e.Broker = func(context.Context, string) (external.Access, error) {
+		return external.Access{AccessToken: token, TokenType: "Bearer", ExpiresAt: time.Now().Add(time.Hour), Scope: scope}, nil
+	}
+	if _, err := e.ensure(context.Background(), a, true); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(e.config(a))
+	if !strings.Contains(string(raw), "type = dropbox") || strings.Contains(string(raw), "refresh_token") {
+		t.Fatal("wrong runtime credential")
+	}
+	token = "second"
+	if rotated, err := e.ensure(context.Background(), a, true); err != nil || !rotated {
+		t.Fatal(rotated, err)
+	}
+	scope = "https://www.googleapis.com/auth/drive"
+	if _, err := e.ensure(context.Background(), a, true); err == nil {
+		t.Fatal("Google grant accepted for Dropbox")
+	}
+}
+
+func TestDropboxCursorPaginationAndIdle(t *testing.T) {
+	e := fixture(t)
+	a := Account{ID: accountID, Provider: "dropbox", Grant: strings.Repeat("f", 32), Owner: "owner", Cursor: "first"}
+	e.Broker = func(context.Context, string) (external.Access, error) {
+		return external.Access{AccessToken: "temporary", TokenType: "Bearer", ExpiresAt: time.Now().Add(time.Hour), Scope: "account_info.read files.metadata.read files.content.read files.content.write"}, nil
+	}
+	calls := 0
+	e.HTTP = doFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		if r.Method != "POST" || r.URL.String() != "https://api.dropboxapi.com/2/files/list_folder/continue" {
+			t.Fatal(r.URL)
+		}
+		var body map[string]string
+		json.NewDecoder(r.Body).Decode(&body)
+		response := `{"entries":[],"cursor":"third","has_more":false}`
+		if calls == 1 {
+			if body["cursor"] != "first" {
+				t.Fatal(body)
+			}
+			response = `{"entries":[{".tag":"file"}],"cursor":"second","has_more":true}`
+		} else if calls == 2 && body["cursor"] != "second" {
+			t.Fatal(body)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(response))}, nil
+	})
+	cursor, changed, err := e.poll(context.Background(), a)
+	if err != nil || !changed || cursor != "third" || calls != 2 {
+		t.Fatal(cursor, changed, err, calls)
+	}
+	a.Cursor = cursor
+	if _, changed, err = e.poll(context.Background(), a); err != nil || changed {
+		t.Fatal(changed, err)
+	}
+}
+
+func TestDropboxFoldersOverlapIgnoringCase(t *testing.T) {
+	e := fixture(t)
+	task := addTask(t, e, "download")
+	e.DB.Exec("UPDATE accounts SET provider='dropbox'")
+	e.DB.Exec("UPDATE tasks SET remote='Invoices' WHERE id=?", task.ID)
+	_, err := e.Action(context.Background(), map[string]any{"action": "task.create", "account": accountID, "local": t.TempDir(), "remote": "invoices/2026", "direction": "download"})
+	if err == nil || !strings.Contains(err.Error(), "must not overlap") {
+		t.Fatal(err)
 	}
 }

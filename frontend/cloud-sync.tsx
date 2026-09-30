@@ -5,6 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import {
   mdiCloudSyncOutline,
   mdiGoogleDrive,
+  mdiDropbox,
   mdiArrowUp,
   mdiChevronRight,
   mdiChevronDown,
@@ -32,7 +33,7 @@ import {
   registerServerMessages,
   translator,
 } from "@panasms/i18n";
-import { GoogleConnect } from "@panasms/external";
+import { ProviderConnect } from "@panasms/external";
 import messages from "./server-messages.json";
 import en from "./locales/en.json";
 import ru from "./locales/ru.json";
@@ -75,7 +76,7 @@ type State = {
 type Connection = { id: string; provider: string; email: string; name: string };
 const empty: State = { accounts: [], tasks: [], history: [] };
 const providerIcon = (id: string) =>
-  id === "drive" ? mdiGoogleDrive : mdiCloudSyncOutline;
+  id === "drive" ? mdiGoogleDrive : id === "dropbox" ? mdiDropbox : mdiCloudSyncOutline;
 async function api<T>(body?: unknown): Promise<T> {
   const result = await request<T & { error?: string }>(
     "module-api/cloud-sync/" + (body ? "action" : "state"),
@@ -275,6 +276,7 @@ export function CloudSyncPage() {
   );
   const [dialog, setDialog] = useState<"account" | "task" | null>(null);
   const [reconnect, setReconnect] = useState<Account | null>(null);
+  const [provider, setProvider] = useState<"drive" | "dropbox">("drive");
   const [label, setLabel] = useState("");
   const [step, setStep] = useState(1);
   const [taskAccount, setTaskAccount] = useState("");
@@ -301,9 +303,9 @@ export function CloudSyncPage() {
     queryFn: () => request<Connection[]>("external/connections"),
     enabled: dialog !== null && step === 1,
   });
-  const googleConnections =
-    connectionsQuery.data?.filter((c) => c.provider === "google") ?? [];
-  const selectedConnectionId = connectionId || googleConnections[0]?.id || "";
+  const linkedConnections =
+    connectionsQuery.data?.filter((c) => c.provider === (provider === "drive" ? "google" : "dropbox")) ?? [];
+  const selectedConnectionId = connectionId || linkedConnections[0]?.id || "";
   async function perform(body: Record<string, unknown>) {
     setBusy(true);
     setError("");
@@ -327,7 +329,7 @@ export function CloudSyncPage() {
       if (grantId) void connectAccount(grantId);
     };
   });
-  const completeGoogle = useCallback(
+  const completeGrant = useCallback(
     (grantId?: string) => grantCompletion.current(grantId),
     [],
   );
@@ -338,11 +340,11 @@ export function CloudSyncPage() {
       const result = await api<{ id: string }>({
         action: "account.save",
         id: reconnect?.id,
-        provider: "drive",
+        provider,
         label:
           label.trim() ||
-          googleConnections.find((c) => c.id === selectedConnectionId)?.email ||
-          "Google Drive",
+          linkedConnections.find((c) => c.id === selectedConnectionId)?.email ||
+          (provider === "drive" ? "Google Drive" : "Dropbox"),
         grantId,
       });
       await query.refetch();
@@ -362,6 +364,7 @@ export function CloudSyncPage() {
   }
   function openAccount(current: Account | null) {
     setReconnect(current);
+    setProvider(current?.provider === "dropbox" ? "dropbox" : "drive");
     setLabel(current?.label ?? "");
     setConnectionId("");
     setTaskAccount("");
@@ -512,7 +515,7 @@ export function CloudSyncPage() {
                   <div className="page-heading">
                     <div>
                       <h2>{selectedTask?.name || account.label}</h2>
-                      <p className="muted">Google Drive · {account.label}</p>
+                      <p className="muted">{account.provider === "drive" ? "Google Drive" : "Dropbox"} · {account.label}</p>
                     </div>
                     <div className="actions">
                       {selectedTask && (
@@ -605,7 +608,7 @@ export function CloudSyncPage() {
                           <p>
                             {selectedTask.remote
                               ? "/" + selectedTask.remote
-                              : tr("driveRoot")}
+                              : tr("cloudRoot")}
                           </p>
                         </div>
                       </div>
@@ -833,11 +836,11 @@ export function CloudSyncPage() {
                     </>
                   )}
                   <strong>
-                    {picker === "local" ? tr("local") : "Google Drive"}
+                    {picker === "local" ? tr("local") : (chosenAccount?.provider === "dropbox" ? "Dropbox" : "Google Drive")}
                   </strong>
                   <span className="cloud-break">
                     {browsePath ||
-                      tr(picker === "local" ? "locations" : "driveRoot")}
+                      tr(picker === "local" ? "locations" : "cloudRoot")}
                   </span>
                 </div>
                 {picker === "local" ? (
@@ -931,7 +934,7 @@ export function CloudSyncPage() {
                             {tr("chooseAccount")}
                           </option>
                           {state.accounts
-                            .filter((a) => a.provider === "drive")
+                            .filter((a) => a.provider === "drive" || a.provider === "dropbox")
                             .map((a) => (
                               <option key={a.id} value={a.id}>
                                 {a.label}
@@ -944,6 +947,15 @@ export function CloudSyncPage() {
                     {(newAccount || reconnect) && (
                       <>
                         <label>
+                          {tr("provider")}
+                          <select value={provider} disabled={!!reconnect} onChange={(event) => {
+                            setProvider(event.target.value as "drive" | "dropbox"); setConnectionId("");
+                          }}>
+                            <option value="drive">Google Drive</option>
+                            <option value="dropbox">Dropbox</option>
+                          </select>
+                        </label>
+                        <label>
                           {tr("connectionName")}
                           <input
                             value={label}
@@ -951,14 +963,14 @@ export function CloudSyncPage() {
                             maxLength={100}
                           />
                         </label>
-                        {googleConnections.length ? (
+                        {linkedConnections.length ? (
                           <label>
-                            {tr("googleAccount")}
+                            {tr("linkedAccount")}
                             <select
                               value={selectedConnectionId}
                               onChange={(e) => setConnectionId(e.target.value)}
                             >
-                              {googleConnections.map((c) => (
+                              {linkedConnections.map((c) => (
                                 <option key={c.id} value={c.id}>
                                   {c.email || c.name}
                                 </option>
@@ -975,13 +987,15 @@ export function CloudSyncPage() {
                         )}
                         <p className="muted">{tr("connectionOnly")}</p>
                         {selectedConnectionId && (
-                          <GoogleConnect
+                          <ProviderConnect
+                            key={provider + selectedConnectionId}
+                            providerId={provider === "drive" ? "google" : "dropbox"}
                             grant={{
                               connectionId: selectedConnectionId,
                               consumer: "cloud-sync",
-                              capability: "google-drive",
+                              capability: provider === "drive" ? "google-drive" : "dropbox-files",
                             }}
-                            onComplete={completeGoogle}
+                            onComplete={completeGrant}
                           />
                         )}
                       </>
@@ -991,7 +1005,7 @@ export function CloudSyncPage() {
                 {step === 2 && (
                   <>
                     <p className="cloud-account-summary">
-                      <Icon path={mdiGoogleDrive} />
+                      <Icon path={providerIcon(chosenAccount?.provider ?? provider)} />
                       {chosenAccount?.label}
                     </p>
                     <label>
@@ -1021,7 +1035,7 @@ export function CloudSyncPage() {
                               path={
                                 kind === "local"
                                   ? mdiFolderOutline
-                                  : mdiGoogleDrive
+                                  : providerIcon(chosenAccount?.provider ?? provider)
                               }
                             />
                             <span>

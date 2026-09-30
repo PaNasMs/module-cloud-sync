@@ -1,14 +1,12 @@
 package syncer
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -40,11 +38,11 @@ func (e *Engine) config(a Account) string {
 	return filepath.Join(e.Root, a.ID+".conf")
 }
 func (e *Engine) ensure(ctx context.Context, a Account, force bool) (bool, error) {
-	if a.Provider != "drive" {
+	if a.Provider != "drive" && a.Provider != "dropbox" {
 		return false, nil
 	}
 	if a.Grant == "" || !validGrant(a.Grant) || a.Owner != e.Owner {
-		return false, &Failure{"Reconnect this account to grant Drive access", true}
+		return false, &Failure{"Reconnect this account to grant cloud file access", true}
 	}
 	old, ok := e.tokens[a.ID]
 	if !force && ok && time.Since(old.Checked) < 30*time.Second && old.Access.ExpiresAt.After(time.Now().Add(10*time.Second)) {
@@ -56,66 +54,33 @@ func (e *Engine) ensure(ctx context.Context, a Account, force bool) (bool, error
 		_ = os.Remove(e.config(a))
 		var failure *external.Error
 		if errors.As(err, &failure) && (failure.Status == 403 || failure.Status == 409) {
-			return false, &Failure{"Drive access is unavailable. Reconnect this account or restore its permission.", true}
+			return false, &Failure{"Cloud file access is unavailable. Reconnect this account or restore its permission.", true}
 		}
 		return false, problem("Cloud access service is unavailable; retrying later.")
 	}
 	if access.AccessToken == "" || access.TokenType != "Bearer" || !access.ExpiresAt.After(time.Now().Add(10*time.Second)) {
 		return false, problem("Cloud access service returned an invalid token.")
 	}
+	if (a.Provider == "drive" && access.Scope != "https://www.googleapis.com/auth/drive" && access.Scope != "https://www.googleapis.com/auth/drive.readonly") || (a.Provider == "dropbox" && access.Scope != "account_info.read files.metadata.read files.content.read files.content.write") {
+		delete(e.tokens, a.ID)
+		_ = os.Remove(e.config(a))
+		return false, &Failure{"Cloud permission belongs to another provider or lacks file access", true}
+	}
 	changed := !ok || old.Access.AccessToken != access.AccessToken
 	if changed {
 		v := map[string]any{"access_token": access.AccessToken, "token_type": "Bearer", "expiry": access.ExpiresAt}
-		if err = atomicFile(e.config(a), []byte("[cloud]\ntype = drive\ntoken = "+marshal(v)+"\n")); err != nil {
+		if err = atomicFile(e.config(a), []byte("[cloud]\ntype = "+a.Provider+"\ntoken = "+marshal(v)+"\n")); err != nil {
 			return false, err
 		}
 	}
 	e.tokens[a.ID] = lease{access, time.Now()}
 	return ok && changed, nil
 }
-func readToken(path string) (map[string]any, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(io.LimitReader(f, 128<<10))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "token = ") {
-			var v map[string]any
-			err = json.Unmarshal([]byte(strings.TrimPrefix(line, "token = ")), &v)
-			return v, err
-		}
-	}
-	return nil, problem("Account authorization is unavailable. Reconnect the account.")
-}
 func (e *Engine) token(ctx context.Context, a Account) (string, error) {
-	if a.Provider == "drive" {
-		if _, err := e.ensure(ctx, a, false); err != nil {
-			return "", err
-		}
-		return e.tokens[a.ID].Access.AccessToken, nil
-	}
-	v, err := readToken(e.config(a))
-	if err != nil {
+	if _, err := e.ensure(ctx, a, false); err != nil {
 		return "", err
 	}
-	expiry, _ := time.Parse(time.RFC3339, str(v, "expiry"))
-	if !expiry.After(time.Now().Add(120 * time.Second)) {
-		if _, err = e.Runner(ctx, a, []string{"lsd", "cloud:", "--max-depth", "1"}, nil); err != nil {
-			return "", err
-		}
-		v, err = readToken(e.config(a))
-		if err != nil {
-			return "", err
-		}
-	}
-	t := str(v, "access_token")
-	if t == "" {
-		return "", problem("Account authorization is unavailable. Reconnect the account.")
-	}
-	return t, nil
+	return e.tokens[a.ID].Access.AccessToken, nil
 }
 func (e *Engine) api(ctx context.Context, a Account, address string, body any) (map[string]any, error) {
 	token, err := e.token(ctx, a)
@@ -283,11 +248,11 @@ func (e *Engine) saveAccount(ctx context.Context, p map[string]any) (any, error)
 		return nil, problem("Connection name is too long")
 	}
 	a := Account{ID: id, Provider: provider, Label: label}
-	if provider == "drive" {
+	{
 		a.Grant = str(p, "grantId")
 		a.Owner = e.Owner
 		if previous.Owner != "" && previous.Owner != a.Owner {
-			return nil, problem("Reconnect Drive using your own account")
+			return nil, problem("Reconnect using your own linked account")
 		}
 	}
 	oldToken, hadToken := e.tokens[id]
@@ -307,34 +272,9 @@ func (e *Engine) saveAccount(ctx context.Context, p map[string]any) (any, error)
 			}
 		}
 	}()
-	if provider == "drive" {
-		delete(e.tokens, id)
-		if _, err = e.ensure(ctx, a, true); err != nil {
-			return nil, err
-		}
-	} else {
-		auth, _ := p["authorization"].(map[string]any)
-		if str(auth, "provider") != "dropbox" {
-			return nil, problem("Authorization file belongs to another provider")
-		}
-		tok, _ := auth["token"].(map[string]any)
-		if str(tok, "access_token") == "" || str(tok, "refresh_token") == "" {
-			return nil, problem("Authorization file must include access and refresh tokens")
-		}
-		var content bytes.Buffer
-		fmt.Fprintf(&content, "[cloud]\ntype = dropbox\ntoken = %s\n", marshal(tok))
-		for _, key := range []string{"client_id", "client_secret"} {
-			if value, exists := auth[key]; exists {
-				s, ok := value.(string)
-				if !ok || strings.ContainsAny(s, "\r\n") {
-					return nil, problem("Invalid OAuth client setting")
-				}
-				fmt.Fprintf(&content, "%s = %s\n", key, s)
-			}
-		}
-		if err = atomicFile(e.config(a), content.Bytes()); err != nil {
-			return nil, err
-		}
+	delete(e.tokens, id)
+	if _, err = e.ensure(ctx, a, true); err != nil {
+		return nil, err
 	}
 	address := "https://www.googleapis.com/drive/v3/about?fields=user"
 	if provider == "dropbox" {
@@ -388,9 +328,7 @@ func (e *Engine) saveAccount(ctx context.Context, p map[string]any) (any, error)
 		return nil, err
 	}
 	committed = true
-	// Imported Drive refresh credentials are retired only after the replacement grant works.
-	if provider == "drive" {
-		_ = os.Remove(filepath.Join(e.Root, id+".conf"))
-	}
+	// Retire imported credentials only after the replacement grant works.
+	_ = os.Remove(filepath.Join(e.Root, id+".conf"))
 	return map[string]string{"id": id}, nil
 }
