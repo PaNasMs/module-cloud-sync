@@ -16,7 +16,10 @@ import (
 )
 
 func (e *Engine) initialize() error {
-	if _, err := e.DB.Exec("UPDATE tasks SET status='error',error='Transfer interrupted; review before resuming.',paused=1 WHERE status='running'"); err != nil {
+	if _, err := e.DB.Exec("UPDATE tasks SET status='error',error='Transfer interrupted; retrying automatically.',recovery=CASE WHEN direction='both' THEN 'history' ELSE 'retry' END,retry_at=1,paused=1 WHERE status='running' AND paused=0"); err != nil {
+		return err
+	}
+	if _, err := e.DB.Exec("UPDATE tasks SET status='idle',dirty=1 WHERE status='running' AND paused=1 AND recovery=''"); err != nil {
 		return err
 	}
 	_, err := e.DB.Exec("UPDATE tasks SET dirty=1 WHERE paused=0 AND status!='error'")
@@ -27,9 +30,21 @@ func (e *Engine) pauseError(id string, err error) {
 	recovery := ""
 	if message == "Local volume changed or is unavailable" || message == "Local volume changed or is unavailable; reconnect the original volume" {
 		recovery = "volume"
+	} else {
+		recovery = recoveryKind(err)
 	}
-	_, _ = e.DB.Exec("UPDATE tasks SET paused=1,status='error',error=?,recovery=? WHERE id=?", message, recovery, id)
-	_ = e.event(id, "error", message)
+	var attempts int
+	_ = e.DB.QueryRow("SELECT retry_count FROM tasks WHERE id=?", id).Scan(&attempts)
+	var retryAt int64
+	if recovery != "" && recovery != "volume" {
+		retryAt = time.Now().Add(min(time.Minute*time.Duration(1<<min(attempts, 5)), 30*time.Minute)).Unix()
+	}
+	r, updateErr := e.DB.Exec("UPDATE tasks SET paused=1,status='error',error=?,recovery=?,retry_at=?,retry_count=retry_count+1 WHERE id=? AND (paused=0 OR recovery!='')", message, recovery, retryAt, id)
+	if updateErr == nil {
+		if n, _ := r.RowsAffected(); n > 0 {
+			_ = e.event(id, "error", message)
+		}
+	}
 }
 func (e *Engine) monitor(ctx context.Context) {
 	w, err := newWatcher()
@@ -131,6 +146,7 @@ func (e *Engine) cycle(ctx context.Context, next map[string]time.Time, failures 
 	}
 	defer e.cloudMu.Unlock()
 	e.recoverVolumes()
+	_, _ = e.DB.Exec("UPDATE tasks SET paused=0,dirty=1,status='queued',retry_at=0 WHERE paused=1 AND status='error' AND recovery IN ('retry','authorization','history') AND retry_at>0 AND retry_at<=?", time.Now().Unix())
 	accounts, err := e.accounts()
 	if err != nil {
 		return

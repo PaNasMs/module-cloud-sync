@@ -136,7 +136,7 @@ func TestInitialBisyncAndInterruptedInitialization(t *testing.T) {
 	if tasks[0].Initialized != -1 {
 		t.Fatal("initialization not persisted")
 	}
-	if err := e.runTask(context.Background(), tasks[0]); err == nil || err.Error() != recoveryMessage {
+	if err := e.runTask(context.Background(), tasks[0]); err == nil || !errors.Is(err, errRotated) {
 		t.Fatal("unsafe retry", err)
 	}
 }
@@ -184,7 +184,7 @@ func TestTaskRemovalAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	tasks, _ := e.tasks()
-	if tasks[0].Paused != 1 || tasks[0].Status != "error" || tasks[0].Initialized != -1 {
+	if tasks[0].Paused != 1 || tasks[0].Status != "idle" || tasks[0].Initialized != -1 {
 		t.Fatal(tasks)
 	}
 }

@@ -123,5 +123,14 @@
   "waitingVolume": "Waiting for the original volume; retrying automatically",
   "linkedAccount": "Linked account",
   "cloudRoot": "Cloud root",
-  "permissionMismatch": "Cloud permission belongs to another provider or lacks file access"
+  "permissionMismatch": "Cloud permission belongs to another provider or lacks file access",
+  "waitingRetry": "Waiting to retry",
+  "nextRetry": "Next attempt",
+  "recovering": "Restoring from the cloud",
+  "recoveryScheduled": "Two-way sync history will be rebuilt automatically from the cloud; local changes will be backed up.",
+  "recoveryAccess": "Recovery stopped: the cloud access marker is missing or invalid. Check the selected cloud folder.",
+  "recoveryBackup": "Recovery backup folder must be a local directory, not a symlink.",
+  "recoveryFailed": "Recovery could not rebuild synchronization history. Local backups have been preserved.",
+  "recoverySuccess": "Synchronization history restored from the cloud. Replaced and local-only files were saved in .panasms-cloud-versions.",
+  "interruptedRetry": "Transfer interrupted; retrying automatically."
 }

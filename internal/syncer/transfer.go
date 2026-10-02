@@ -19,7 +19,9 @@ import (
 var errRotated = errors.New("token rotated")
 var errPaused = errors.New("task paused")
 
-const recoveryMessage = "Two-way sync history requires recovery. Preserve both folders and create a new task with an empty destination; automatic reset is disabled."
+const legacyRecoveryMessage = "Two-way sync history requires recovery. Preserve both folders and create a new task with an empty destination; automatic reset is disabled."
+
+const recoveryMessage = "Two-way sync history will be rebuilt automatically from the cloud; local changes will be backed up."
 
 // maxDelete bounds how many deletions bisync will propagate in one pass. High
 // enough to let deliberate bulk reorganizations sync through, low enough to
@@ -139,7 +141,7 @@ func transferFailure(log string) error {
 		return problem(recoveryMessage)
 	case strings.Contains(text, "invalid_grant"), strings.Contains(text, "unauthorized"), strings.Contains(text, "invalid_access_token"):
 		return problem("Account authorization expired or access was denied. Reconnect the account.")
-	case strings.Contains(text, "timeout"), strings.Contains(text, "connection refused"), strings.Contains(text, "no such host"):
+	case strings.Contains(text, "429"), strings.Contains(text, "503"), strings.Contains(text, "502"), strings.Contains(text, "timeout"), strings.Contains(text, "connection refused"), strings.Contains(text, "no such host"):
 		return problem("Cloud is unreachable; retry later.")
 	default:
 		return problem("Cloud operation failed. Check account access, folder availability and quota; reconnect if necessary.")
@@ -175,6 +177,23 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 	work := filepath.Join(e.Root, "tasks", t.ID)
 	if err = os.MkdirAll(work, 0700); err != nil {
 		return err
+	}
+	check := func() error {
+		var paused int
+		if err := e.DB.QueryRow("SELECT paused FROM tasks WHERE id=?", t.ID).Scan(&paused); err != nil {
+			return err
+		}
+		if paused != 0 {
+			return errPaused
+		}
+		m, err := e.Mount(t.Local)
+		if err != nil || !sameMount(m, t.Mount) {
+			return problem("Local volume changed or is unavailable; reconnect the original volume")
+		}
+		return nil
+	}
+	if t.Direction == "both" && (t.Initialized < 0 || t.Recovery == "history") {
+		return e.recoverHistory(ctx, a, t, work, check)
 	}
 	args := []string{}
 	if t.Direction == "both" {
@@ -239,20 +258,7 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 		args = []string{"copy", source, dest, "--create-empty-src-dirs", "--backup-dir", backup}
 	}
 	args = append(args, "--exclude", ".panasms-cloud-versions/**", "--exclude", ".panasms-cloud-conflicts/**", "--transfers", "2", "--checkers", "2")
-	check := func() error {
-		var paused int
-		if err := e.DB.QueryRow("SELECT paused FROM tasks WHERE id=?", t.ID).Scan(&paused); err != nil {
-			return err
-		}
-		if paused != 0 {
-			return errPaused
-		}
-		m, err := e.Mount(t.Local)
-		if err != nil || !sameMount(m, t.Mount) {
-			return problem("Local volume changed or is unavailable; reconnect the original volume")
-		}
-		return nil
-	}
+
 	ctx, cancel = context.WithTimeout(ctx, 24*time.Hour)
 	defer cancel()
 	for {
@@ -278,7 +284,7 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 	if err != nil {
 		return err
 	}
-	if _, err = e.DB.Exec("UPDATE tasks SET status='idle',initialized=1,snapshot=?,last_sync=?,error='' WHERE id=?", snapshot, time.Now().Unix(), t.ID); err != nil {
+	if _, err = e.DB.Exec("UPDATE tasks SET status='idle',initialized=1,snapshot=?,last_sync=?,error='',recovery='',retry_at=0,retry_count=0 WHERE id=?", snapshot, time.Now().Unix(), t.ID); err != nil {
 		return err
 	}
 	return e.event(t.ID, "success", "Synchronization completed")

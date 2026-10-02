@@ -166,5 +166,29 @@
   {
     "key": "permissionMismatch",
     "en": "Cloud permission belongs to another provider or lacks file access"
+  },
+  {
+    "key": "recoveryScheduled",
+    "en": "Two-way sync history will be rebuilt automatically from the cloud; local changes will be backed up."
+  },
+  {
+    "key": "recoveryAccess",
+    "en": "Recovery stopped: the cloud access marker is missing or invalid. Check the selected cloud folder."
+  },
+  {
+    "key": "recoveryBackup",
+    "en": "Recovery backup folder must be a local directory, not a symlink."
+  },
+  {
+    "key": "recoveryFailed",
+    "en": "Recovery could not rebuild synchronization history. Local backups have been preserved."
+  },
+  {
+    "key": "recoverySuccess",
+    "en": "Synchronization history restored from the cloud. Replaced and local-only files were saved in .panasms-cloud-versions."
+  },
+  {
+    "key": "interruptedRetry",
+    "en": "Transfer interrupted; retrying automatically."
   }
 ]
