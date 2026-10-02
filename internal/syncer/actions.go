@@ -86,6 +86,7 @@ func (e *Engine) Action(ctx context.Context, p map[string]any) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		mount = stableMount(mount)
 		remote, err := remoteFolder(str(p, "remote"))
 		if err != nil {
 			return nil, err

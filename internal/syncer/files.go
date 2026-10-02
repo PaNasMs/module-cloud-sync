@@ -13,12 +13,85 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// uuidLinks is where udev publishes filesystem UUIDs as links to their devices.
+var uuidLinks = "/dev/disk/by-uuid"
+
+// Device numbers and names such as /dev/sda1 can change between boots, so a
+// volume is identified by its filesystem UUID where udev publishes one. The
+// trailing device fields only match identities recorded before UUIDs were used.
 func mountIdentity(path string) (string, error) {
 	raw, err := os.ReadFile("/proc/self/mountinfo")
 	if err != nil {
 		return "", err
 	}
-	return mountFrom(string(raw), path)
+	device, err := mountFrom(string(raw), path)
+	if err != nil {
+		return "", err
+	}
+	return withUUID(device), nil
+}
+func withUUID(device string) string {
+	var f []string
+	if json.Unmarshal([]byte(device), &f) != nil || len(f) != 5 {
+		return device
+	}
+	source, err := filepath.EvalSymlinks(f[4])
+	if err != nil {
+		return device
+	}
+	links, _ := filepath.Glob(filepath.Join(uuidLinks, "*"))
+	for _, link := range links {
+		if target, err := filepath.EvalSymlinks(link); err == nil && target == source {
+			return marshal([]string{"uuid:" + filepath.Base(link), f[1], f[2], f[3], f[0], f[4]})
+		}
+	}
+	return device
+}
+
+// stableMount is the part of a current identity that is stored with a task.
+func stableMount(current string) string {
+	var f []string
+	if json.Unmarshal([]byte(current), &f) == nil && len(f) == 6 {
+		return marshal(f[:4])
+	}
+	return current
+}
+
+// originalVolume reports whether the task's local folder is still on the
+// filesystem it was created on. Identities recorded by device are upgraded to
+// the filesystem UUID so that later device renames do not stop the task.
+func (e *Engine) originalVolume(t Task) bool {
+	current, err := e.Mount(t.Local)
+	if err != nil {
+		return false
+	}
+	stable := stableMount(current)
+	if sameMount(stable, t.Mount) {
+		return true
+	}
+	var c, s []string
+	if json.Unmarshal([]byte(current), &c) != nil || json.Unmarshal([]byte(t.Mount), &s) != nil || len(c) != 6 || len(s) != 5 {
+		return false
+	}
+	if s[1] != c[1] || s[2] != c[2] || s[3] != c[3] {
+		return false
+	}
+	// A device renamed since the identity was recorded is accepted only with
+	// proof that the folder is the task's own: its access marker.
+	if (s[0] != c[4] || s[4] != c[5]) && !hasAccessMarker(t) {
+		return false
+	}
+	_, _ = e.DB.Exec("UPDATE tasks SET mount=? WHERE id=? AND mount=?", stable, t.ID, t.Mount)
+	return true
+}
+func hasAccessMarker(t Task) bool {
+	path := filepath.Join(t.Local, ".panasms-cloud-access-"+t.ID)
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	raw, err := os.ReadFile(path)
+	return err == nil && string(raw) == t.ID+"\n"
 }
 func unescape(s string) string {
 	for _, p := range []struct{ a, b string }{{`\040`, " "}, {`\011`, "\t"}, {`\012`, "\n"}, {`\134`, `\`}} {
