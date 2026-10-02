@@ -124,7 +124,13 @@ for paused tasks. Failed checks use exponential backoff (up to 30 minutes).
 
 Tasks stopped because their local volume disappeared are checked every 30 seconds.
 They resume only when the saved mount identity matches and the original directory
-is accessible. A different volume never becomes an automatic replacement. Manual
+is accessible. The identity is the filesystem UUID with its mount point, so a
+disk renamed by the kernel between boots (for example `/dev/sda1` to `/dev/sdb1`)
+remains the same volume. Identities recorded by device before 0.1.18 are upgraded
+automatically; when the device was already renamed, the task is accepted only if
+its folder still holds the task's own access marker. Filesystems for which udev
+publishes no UUID keep the device-based identity.
+A different volume never becomes an automatic replacement. Manual
 pause cancels automatic recovery. Temporary connectivity failures retry with
 persisted exponential backoff (1–30 minutes). Authorization retries never bypass
 revoked permissions; the owner must grant access again when required.
@@ -182,6 +188,11 @@ The module verifies the cloud access marker and original local mount before
 reconciliation. Legacy initialized tasks without a marker receive one first.
 A missing or invalid marker on a task which already had one stops recovery for
 review. Network and authorization failures cannot be treated as an empty cloud.
+
+A task whose first synchronization was interrupted has no marker in the cloud yet.
+It first uploads local files that the cloud lacks, without replacing any cloud
+file, and then continues with the same cloud-authoritative reconciliation, which
+replaces partially downloaded files and keeps the replaced copies in the backup.
 
 After reconciliation, content checks and a dry-run resync build a fresh history
 in a separate directory. The cloud listing must remain unchanged during this

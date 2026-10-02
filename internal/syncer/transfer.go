@@ -153,11 +153,10 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 		return lockErr
 	}
 	defer release()
-	mount, err := e.Mount(t.Local)
-	if err != nil || !sameMount(mount, t.Mount) {
+	if !e.originalVolume(t) {
 		return problem("Local volume changed or is unavailable; reconnect the original volume")
 	}
-	if _, err = e.Local(t.Local); err != nil {
+	if _, err := e.Local(t.Local); err != nil {
 		return err
 	}
 	a, err := e.account(t.Account)
@@ -186,8 +185,7 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 		if paused != 0 {
 			return errPaused
 		}
-		m, err := e.Mount(t.Local)
-		if err != nil || !sameMount(m, t.Mount) {
+		if !e.originalVolume(t) {
 			return problem("Local volume changed or is unavailable; reconnect the original volume")
 		}
 		return nil

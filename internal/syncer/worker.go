@@ -74,8 +74,7 @@ func (e *Engine) monitor(ctx context.Context) {
 				}
 				active[t.ID] = true
 				if !watched[t.ID] {
-					m, err := e.Mount(t.Local)
-					if err != nil || !sameMount(m, t.Mount) {
+					if !e.originalVolume(t) {
 						e.pauseError(t.ID, problem("Local volume changed or is unavailable"))
 						continue
 					}
@@ -130,8 +129,7 @@ func (e *Engine) recoverVolumes() {
 		if e.DB.QueryRow("SELECT recovery FROM tasks WHERE id=?", t.ID).Scan(&recovery) != nil || recovery != "volume" {
 			continue
 		}
-		m, err := e.Mount(t.Local)
-		if err != nil || !sameMount(m, t.Mount) {
+		if !e.originalVolume(t) {
 			continue
 		}
 		if _, err = e.Local(t.Local); err != nil {

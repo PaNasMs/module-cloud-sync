@@ -39,7 +39,28 @@ func (e *Engine) recoverHistory(ctx context.Context, a Account, t Task, work str
 	marker := ".panasms-cloud-access-" + t.ID
 	remote := "cloud:" + t.Remote
 	markerRemote := strings.TrimRight(remote, "/") + "/" + marker
-	if _, err := os.Stat(filepath.Join(work, "access-marker")); os.IsNotExist(err) && t.Initialized > 0 {
+	filters := []string{"--exclude", ".panasms-cloud-versions/**", "--exclude", ".panasms-cloud-conflicts/**", "--transfers", "2", "--checkers", "2"}
+	run := func(args ...string) error {
+		if err := check(); err != nil {
+			return err
+		}
+		_, err := e.Runner(ctx, a, append(args, filters...), check)
+		return err
+	}
+	if t.Initialized < 0 && t.LastSync == 0 {
+		// The first synchronization never completed, so the cloud may not hold the
+		// access marker yet. Finish the initial upload without replacing anything
+		// in the cloud; the cloud-authoritative pass below repairs partial downloads.
+		if err := atomicFile(filepath.Join(t.Local, marker), []byte(t.ID+"\n")); err != nil {
+			return err
+		}
+		if err := atomicFile(filepath.Join(work, "access-marker"), []byte(marker)); err != nil {
+			return err
+		}
+		if err := run("copy", t.Local, remote, "--ignore-existing", "--create-empty-src-dirs"); err != nil {
+			return err
+		}
+	} else if _, err := os.Stat(filepath.Join(work, "access-marker")); os.IsNotExist(err) && t.Initialized > 0 {
 		// Pre-marker tasks already have an established cloud account and folder.
 		// Add only the access sentinel; never upload their unsent local files.
 		if err = atomicFile(filepath.Join(work, "access-marker-source"), []byte(t.ID+"\n")); err != nil {
@@ -72,14 +93,6 @@ func (e *Engine) recoverHistory(ctx context.Context, a Account, t Task, work str
 	}
 	backup := filepath.Join(versions, "recovery-"+time.Now().UTC().Format("20060102T150405")+"-"+newID()[:8])
 	if _, err = e.DB.Exec("UPDATE tasks SET initialized=-1,recovery='history' WHERE id=? AND paused=0", t.ID); err != nil {
-		return err
-	}
-	filters := []string{"--exclude", ".panasms-cloud-versions/**", "--exclude", ".panasms-cloud-conflicts/**", "--transfers", "2", "--checkers", "2"}
-	run := func(args ...string) error {
-		if err := check(); err != nil {
-			return err
-		}
-		_, err := e.Runner(ctx, a, append(args, filters...), check)
 		return err
 	}
 	if err = run("sync", remote, t.Local, "--backup-dir", backup, "--checksum", "--max-delete", maxDelete, "--create-empty-src-dirs"); err != nil {
