@@ -2,7 +2,7 @@
   "id": "cloud-sync",
   "title": "Cloud Sync",
   "description": "Synchronize selected folders with multiple Google Drive and Dropbox accounts.",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "api": 1,
   "core": ">=0.2.11,<0.3.0",
   "architecture": "arm64",
@@ -19,15 +19,19 @@
   "translations": {
     "en": {
       "title": "Cloud Sync",
-      "description": "Synchronize local folders with multiple Google Drive and Dropbox accounts."
+      "description": "Synchronize local folders with multiple Google Drive and Dropbox accounts.",
+      "longDescription": "Synchronize selected folders between your NAS and Google Drive or Dropbox. Connect multiple accounts and create separate sync tasks, each with its own local folder, cloud folder and transfer direction.\n\nThe setup wizard helps you select the account and folder pair before starting. Task details show progress, recent activity and errors; background work can be paused or stopped using the available task controls.\n\nCloud access is granted through the external connections configured on your NAS. Local files belong to the user who owns the synchronization. Remote change checks are designed to avoid unnecessary disk activity when there is nothing to transfer. OneDrive and Synology Drive are not supported yet."
     },
     "ru": {
       "title": "Облачная синхронизация",
-      "description": "Синхронизация папок с несколькими аккаунтами Google Drive и Dropbox."
+      "description": "Синхронизация папок с несколькими аккаунтами Google Drive и Dropbox.",
+      "longDescription": "Синхронизируйте выбранные папки NAS с Google Drive или Dropbox. Подключайте несколько аккаунтов и создавайте отдельные задачи со своей локальной папкой, облачной папкой и направлением передачи.\n\nМастер настройки помогает выбрать аккаунт и пару папок до запуска. В подробностях задачи отображаются прогресс, последние действия и ошибки; фоновую работу можно приостановить или остановить доступными кнопками управления.\n\nДоступ к облаку предоставляется через внешние подключения, настроенные на NAS. Локальные файлы принадлежат владельцу синхронизации. Проверки облачных изменений рассчитаны на отсутствие лишних обращений к дискам, когда передавать нечего. OneDrive и Synology Drive пока не поддерживаются."
     },
     "uk": {
       "title": "Хмарна синхронізація",
-      "description": "Синхронізація папок із кількома обліковими записами Google Drive і Dropbox."
+      "description": "Синхронізація папок із кількома обліковими записами Google Drive і Dropbox.",
+      "longDescription": "Синхронізуйте вибрані папки NAS із Google Drive або Dropbox. Підключайте кілька облікових записів і створюйте окремі завдання зі своєю локальною папкою, хмарною папкою та напрямком передавання.\n\nМайстер налаштування допомагає вибрати обліковий запис і пару папок до запуску. У подробицях завдання відображаються прогрес, останні дії та помилки; фонову роботу можна призупинити або зупинити доступними кнопками керування.\n\nДоступ до хмари надається через зовнішні підключення, налаштовані на NAS. Локальні файли належать власнику синхронізації. Перевірки хмарних змін розраховані на відсутність зайвих звернень до дисків, коли передавати нічого. OneDrive та Synology Drive поки не підтримуються."
     }
-  }
+  },
+  "longDescription": "Synchronize selected folders between your NAS and Google Drive or Dropbox. Connect multiple accounts and create separate sync tasks, each with its own local folder, cloud folder and transfer direction.\n\nThe setup wizard helps you select the account and folder pair before starting. Task details show progress, recent activity and errors; background work can be paused or stopped using the available task controls.\n\nCloud access is granted through the external connections configured on your NAS. Local files belong to the user who owns the synchronization. Remote change checks are designed to avoid unnecessary disk activity when there is nothing to transfer. OneDrive and Synology Drive are not supported yet."
 }
