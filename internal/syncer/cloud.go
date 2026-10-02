@@ -61,7 +61,7 @@ func (e *Engine) ensure(ctx context.Context, a Account, force bool) (bool, error
 	if access.AccessToken == "" || access.TokenType != "Bearer" || !access.ExpiresAt.After(time.Now().Add(10*time.Second)) {
 		return false, problem("Cloud access service returned an invalid token.")
 	}
-	if (a.Provider == "drive" && access.Scope != "https://www.googleapis.com/auth/drive" && access.Scope != "https://www.googleapis.com/auth/drive.readonly") || (a.Provider == "dropbox" && access.Scope != "account_info.read files.metadata.read files.content.read files.content.write") {
+	if !scopeAllowed(a.Provider, access.Scope) {
 		delete(e.tokens, a.ID)
 		_ = os.Remove(e.config(a))
 		return false, &Failure{"Cloud permission belongs to another provider or lacks file access", true}

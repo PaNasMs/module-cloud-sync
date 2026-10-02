@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/PaNasMs/module-sdk/maintenance"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -48,7 +49,12 @@ func (b *limitedBuffer) Exceeded() bool { b.Lock(); defer b.Unlock(); return b.o
 func (e *Engine) runProcess(ctx context.Context, a Account, args []string, check func() error) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 24*time.Hour)
 	defer cancel()
-	argv := []string{"--config", e.config(a), "--cache-dir", filepath.Join(e.Root, "cache"), "--contimeout", "15s", "--timeout", "60s", "--retries", "1", "--low-level-retries", "2", "--drive-skip-gdocs", "--drive-skip-shortcuts"}
+	config, cleanup, err := e.refreshConfig(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+	argv := []string{"--config", config, "--cache-dir", filepath.Join(e.Root, "cache"), "--contimeout", "15s", "--timeout", "60s", "--retries", "1", "--low-level-retries", "2", "--drive-skip-gdocs", "--drive-skip-shortcuts"}
 	argv = append(argv, args...)
 	cmd := exec.Command("rclone", argv...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
@@ -108,19 +114,20 @@ func (e *Engine) runProcess(ctx context.Context, a Account, args []string, check
 					return nil, err
 				}
 			}
-			rotated, err := e.ensure(ctx, a, false)
+			_, err := e.ensure(ctx, a, false)
 			if err != nil {
 				stop()
 				return nil, err
-			}
-			if rotated {
-				stop()
-				return nil, errRotated
 			}
 		}
 	}
 }
 func (e *Engine) runTask(ctx context.Context, t Task) error {
+	release, lockErr := maintenance.Acquire()
+	if lockErr != nil {
+		return lockErr
+	}
+	defer release()
 	mount, err := e.Mount(t.Local)
 	if err != nil || !sameMount(mount, t.Mount) {
 		return problem("Local volume changed or is unavailable; reconnect the original volume")
@@ -183,9 +190,6 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 		args = []string{"bisync", t.Local, target, "--workdir", work, "--max-delete", maxDelete}
 		if t.Initialized == 0 {
 			args = append(args, "--resync")
-			if _, err = e.DB.Exec("UPDATE tasks SET initialized=-1 WHERE id=?", t.ID); err != nil {
-				return err
-			}
 		}
 	} else {
 		source, dest := t.Local, target
@@ -215,6 +219,11 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 	for {
 		if err = check(); err != nil {
 			return err
+		}
+		if t.Direction == "both" && t.Initialized == 0 {
+			if _, err = e.DB.Exec("UPDATE tasks SET initialized=-1 WHERE id=?", t.ID); err != nil {
+				return err
+			}
 		}
 		_, err = e.Runner(ctx, a, args, check)
 		if !errors.Is(err, errRotated) {

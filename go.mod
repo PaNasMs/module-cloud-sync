@@ -2,7 +2,7 @@ module github.com/PaNasMs/module-cloud-sync
 
 go 1.26.0
 
-require github.com/PaNasMs/module-sdk v0.0.0-20260930112240-0bbb2f8bea24
+require github.com/PaNasMs/module-sdk v0.0.0-20261002093331-8ca09cf8ce82
 
 require (
 	github.com/mattn/go-sqlite3 v1.14.52 // indirect

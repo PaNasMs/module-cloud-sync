@@ -137,3 +137,12 @@ the Linux user running the operation. Parent-directory setgid and default ACLs
 still apply; existing files are not changed. Private module state and credentials
 retain restrictive permissions. Terminal startup scripts can override the initial
 shell mask.
+
+## Long-running authorization
+
+A transfer uses a private per-run rclone configuration and a loopback refresh
+relay. rclone's [token URL override](https://rclone.org/drive/#drive-token-url)
+requests fresh access tokens from the core broker using a random per-run capability.
+Provider refresh tokens and OAuth client secrets remain in core. Google Drive and
+Dropbox transfers no longer restart merely because an access token rotates.
+Revoked grants still stop work; two-way sync does not automatically reset its history.
