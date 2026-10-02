@@ -12,7 +12,15 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+          - arch: amd64
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -28,7 +36,7 @@ jobs:
       - run: sh scripts/build.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: module-payload
+          name: module-payload-${{ matrix.arch }}
           path: dist/*.unsigned.zip
           if-no-files-found: error
   release:
@@ -46,11 +54,11 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh run download "$RUN_ID" --name module-payload --dir payload
+          gh run download "$RUN_ID" --pattern "module-payload-*" --dir payload
           if gh release view "$TAG" --json isDraft --jq .isDraft > draft.txt 2>/dev/null; then
             test "$(cat draft.txt)" = true || exit 0
           else
-            gh release create "$TAG" --verify-tag --draft --title "$TAG" --notes 'ARM64 build payload. Install the signed package from the PaNasMs module registry.'
+            gh release create "$TAG" --verify-tag --draft --title "$TAG" --notes 'ARM64 and AMD64 build payloads. Install the signed package from the PaNasMs module registry.'
           fi
-          gh release upload "$TAG" payload/*.unsigned.zip --clobber
+          gh release upload "$TAG" payload/*/*.unsigned.zip --clobber
           gh release edit "$TAG" --draft=false

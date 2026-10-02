@@ -146,3 +146,7 @@ requests fresh access tokens from the core broker using a random per-run capabil
 Provider refresh tokens and OAuth client secrets remain in core. Google Drive and
 Dropbox transfers no longer restart merely because an access token rotates.
 Revoked grants still stop work; two-way sync does not automatically reset its history.
+
+## Supported architectures
+
+Version 0.1.14 and newer publish separate native `arm64` and `amd64` packages. The module manager selects the compatible package automatically. CI tests both architectures on Ubuntu 24.04 runners before publishing a release. Package creation verifies the server ELF architecture against the manifest. Older ARM64-only releases remain unchanged.
