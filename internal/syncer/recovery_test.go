@@ -21,7 +21,12 @@ func TestRecoveryRetryAndManualPause(t *testing.T) {
 	if _, err := e.taskAction("task.pause", task.ID); err != nil {
 		t.Fatal(err)
 	}
+	e.DB.Exec("UPDATE tasks SET status='running' WHERE id=?", task.ID)
 	e.pauseError(task.ID, problem(recoveryMessage))
+	tasks, _ = e.tasks()
+	if tasks[0].Status != "idle" {
+		t.Fatal("completed transfer stuck running after concurrent manual pause", tasks)
+	}
 	if err := e.initialize(); err != nil {
 		t.Fatal(err)
 	}

@@ -43,6 +43,8 @@ func (e *Engine) pauseError(id string, err error) {
 	if updateErr == nil {
 		if n, _ := r.RowsAffected(); n > 0 {
 			_ = e.event(id, "error", message)
+		} else {
+			_, _ = e.DB.Exec("UPDATE tasks SET status='idle',dirty=1 WHERE id=? AND paused=1 AND recovery='' AND status='running'", id)
 		}
 	}
 }
