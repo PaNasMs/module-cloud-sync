@@ -11,7 +11,7 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  build:
+  package:
     strategy:
       fail-fast: false
       matrix:
@@ -39,6 +39,15 @@ jobs:
           name: module-payload-${{ matrix.arch }}
           path: dist/*.unsigned.zip
           if-no-files-found: error
+  build:
+    needs: package
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every architecture
+        env:
+          RESULT: ${{ needs.package.result }}
+        run: test "$RESULT" = success
   release:
     if: startsWith(github.ref, 'refs/tags/v') && github.event_name != 'pull_request'
     needs: build
