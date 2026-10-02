@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -86,14 +87,12 @@ func (e *Engine) runProcess(ctx context.Context, a Account, args []string, check
 				return nil, problem("Cloud output exceeds the supported limit")
 			}
 			if err != nil {
-				text := strings.ToLower(logs.b.String())
-				if strings.Contains(text, "max-delete") || strings.Contains(text, "all files were changed") || strings.Contains(text, "too many deletes") {
-					return nil, problem("Safety check stopped the task: too many files changed or were deleted. Review both folders before retrying.")
+				diagnostic := redactTransferLog(logs.b.String())
+				if token, ok := e.tokens[a.ID]; ok && token.Access.AccessToken != "" {
+					diagnostic = strings.ReplaceAll(diagnostic, token.Access.AccessToken, "[redacted]")
 				}
-				if len(args) > 0 && args[0] == "bisync" {
-					return nil, problem(recoveryMessage)
-				}
-				return nil, problem("Cloud operation failed. Check account access, folder availability and quota; reconnect if necessary.")
+				_ = atomicFile(filepath.Join(e.Root, a.ID+".last-error.log"), []byte(diagnostic))
+				return nil, transferFailure(logs.b.String())
 			}
 			return out.b.Bytes(), nil
 		case <-ctx.Done():
@@ -120,6 +119,30 @@ func (e *Engine) runProcess(ctx context.Context, a Account, args []string, check
 				return nil, err
 			}
 		}
+	}
+}
+
+var transferSecrets = regexp.MustCompile(`(?i)(bearer\s+|(?:access_token|refresh_token|client_secret)["']?\s*[:=]\s*["']?)[^\s"'&,}]+`)
+var transferURLs = regexp.MustCompile(`https?://[^\s"'<>]+`)
+
+func redactTransferLog(text string) string {
+	text = transferSecrets.ReplaceAllString(text, "${1}[redacted]")
+	return transferURLs.ReplaceAllString(text, "[endpoint]")
+}
+
+func transferFailure(log string) error {
+	text := strings.ToLower(log)
+	switch {
+	case strings.Contains(text, "max-delete"), strings.Contains(text, "all files were changed"), strings.Contains(text, "too many deletes"):
+		return problem("Safety check stopped the task: too many files changed or were deleted. Review both folders before retrying.")
+	case strings.Contains(text, "must run --resync"), strings.Contains(text, "cannot find prior"), strings.Contains(text, "run --resync to recover"):
+		return problem(recoveryMessage)
+	case strings.Contains(text, "invalid_grant"), strings.Contains(text, "unauthorized"), strings.Contains(text, "invalid_access_token"):
+		return problem("Account authorization expired or access was denied. Reconnect the account.")
+	case strings.Contains(text, "timeout"), strings.Contains(text, "connection refused"), strings.Contains(text, "no such host"):
+		return problem("Cloud is unreachable; retry later.")
+	default:
+		return problem("Cloud operation failed. Check account access, folder availability and quota; reconnect if necessary.")
 	}
 }
 func (e *Engine) runTask(ctx context.Context, t Task) error {
@@ -189,7 +212,23 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 		}
 		args = []string{"bisync", t.Local, target, "--workdir", work, "--max-delete", maxDelete}
 		if t.Initialized == 0 {
+			// A stable access marker also keeps empty and single-file histories valid
+			// in rclone 1.60. Never recreate it after initialization: loss must stop sync.
+			marker := ".panasms-cloud-access-" + t.ID
+			if err = atomicFile(filepath.Join(t.Local, marker), []byte(t.ID+"\n")); err != nil {
+				return err
+			}
+			if err = atomicFile(filepath.Join(work, "access-marker"), []byte(marker)); err != nil {
+				return err
+			}
 			args = append(args, "--resync")
+		} else if marker, readErr := os.ReadFile(filepath.Join(work, "access-marker")); readErr == nil {
+			if string(marker) != ".panasms-cloud-access-"+t.ID {
+				return problem(recoveryMessage)
+			}
+			args = append(args, "--check-access", "--check-filename", string(marker))
+		} else if !os.IsNotExist(readErr) {
+			return readErr
 		}
 	} else {
 		source, dest := t.Local, target

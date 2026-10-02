@@ -150,3 +150,19 @@ Revoked grants still stop work; two-way sync does not automatically reset its hi
 ## Supported architectures
 
 Version 0.1.14 and newer publish separate native `arm64` and `amd64` packages. The module manager selects the compatible package automatically. CI tests both architectures on Ubuntu 24.04 runners before publishing a release. Package creation verifies the server ELF architecture against the manifest. Older ARM64-only releases remain unchanged.
+
+## Empty folders and transfer diagnostics
+
+From 0.1.15, new two-way tasks create a small hidden
+`.panasms-cloud-access-<task-id>` file in the selected folder pair. This stable
+marker supports empty-folder initialization and single-file changes with distro
+rclone 1.60, and enables `--check-access` on subsequent runs. Do not delete the
+marker: loss stops synchronization instead of recreating it or propagating
+deletions. Existing tasks are not silently resynchronized or migrated.
+
+Failed subprocess output is retained with credentials and URLs redacted in the
+private per-user state directory as `<account-id>.last-error.log` (0600). The UI
+only reports history recovery when rclone actually requires it; ordinary network
+and authorization errors retain their specific messages. Original failed test
+tasks can be replaced with a new task after preserving the folders, subject to
+the same initial requirement that one side be empty.

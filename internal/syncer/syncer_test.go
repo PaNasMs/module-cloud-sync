@@ -389,6 +389,70 @@ func TestRealRcloneLocalTransfers(t *testing.T) {
 		})
 	}
 }
+
+func TestRealRcloneEmptyTwoWayThenChanges(t *testing.T) {
+	if _, err := exec.LookPath("rclone"); err != nil {
+		t.Skip("rclone unavailable")
+	}
+	e := fixture(t)
+	task := addTask(t, e, "both")
+	run := func() {
+		t.Helper()
+		if err := e.runTask(context.Background(), task); err != nil {
+			t.Fatal(err)
+		}
+		task.Initialized = 1
+	}
+	run()
+	run()
+	if err := os.WriteFile(filepath.Join(task.Local, "from-nas"), []byte("first"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run()
+	if raw, err := os.ReadFile(filepath.Join(task.Remote, "from-nas")); err != nil || string(raw) != "first" {
+		t.Fatalf("upload: %q %v", raw, err)
+	}
+	if err := os.WriteFile(filepath.Join(task.Remote, "from-cloud"), []byte("second"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run()
+	if raw, err := os.ReadFile(filepath.Join(task.Local, "from-cloud")); err != nil || string(raw) != "second" {
+		t.Fatalf("download: %q %v", raw, err)
+	}
+	if err := os.Remove(filepath.Join(task.Remote, ".panasms-cloud-access-"+task.ID)); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.runTask(context.Background(), task); err == nil {
+		t.Fatal("missing cloud access marker accepted")
+	}
+	if _, err := os.Stat(filepath.Join(task.Remote, ".panasms-cloud-access-"+task.ID)); !os.IsNotExist(err) {
+		t.Fatal("missing marker was recreated")
+	}
+	if raw, err := os.ReadFile(filepath.Join(task.Local, "from-cloud")); err != nil || string(raw) != "second" {
+		t.Fatalf("local data changed after loss of marker: %q %v", raw, err)
+	}
+}
+
+func TestTransferFailureClassificationAndRedaction(t *testing.T) {
+	for _, tc := range []struct{ log, want string }{
+		{"dial tcp: connection refused", "Cloud is unreachable; retry later."},
+		{"401 Unauthorized", "Account authorization expired or access was denied. Reconnect the account."},
+		{"Failed to bisync: unknown failure", "Cloud operation failed. Check account access, folder availability and quota; reconnect if necessary."},
+		{"cannot find prior Path1 or Path2 listings", recoveryMessage},
+		{"Bisync aborted. Must run --resync to recover.", recoveryMessage},
+		{"too many deletes", "Safety check stopped the task: too many files changed or were deleted. Review both folders before retrying."},
+	} {
+		if got := transferFailure(tc.log).Error(); got != tc.want {
+			t.Fatalf("%q: %q", tc.log, got)
+		}
+	}
+	log := redactTransferLog(`Authorization: Bearer secret1 {"access_token":"secret2","refresh_token":"secret3"} client_secret=secret4 https://provider.test/?code=secret5`)
+	for _, secret := range []string{"secret1", "secret2", "secret3", "secret4", "secret5"} {
+		if strings.Contains(log, secret) {
+			t.Fatal("credential retained in log")
+		}
+	}
+}
 func TestNoDiskScanOnIdleMonitor(t *testing.T) {
 	e := fixture(t)
 	task := addTask(t, e, "upload")
