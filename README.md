@@ -48,8 +48,8 @@ Choose a direction:
 - **Upload / download:** copy changes without propagating deletions. Replaced
   destination files are preserved under `.panasms-cloud-versions`.
 - **Two-way:** propagate changes in both directions with rclone's deletion limit.
-  One side must be empty for initial setup. After an interrupted initialization,
-  automatic `--resync` is forbidden; preserve both sides and recover deliberately.
+  One side must be empty for initial setup. When history is damaged, recovery
+  treats the cloud as authoritative and backs up displaced local files first.
 - Pause/resume, run now, remove tasks and inspect history. Removing a task or
   connection preserves synchronized files.
 
@@ -125,7 +125,9 @@ for paused tasks. Failed checks use exponential backoff (up to 30 minutes).
 Tasks stopped because their local volume disappeared are checked every 30 seconds.
 They resume only when the saved mount identity matches and the original directory
 is accessible. A different volume never becomes an automatic replacement. Manual
-pause cancels automatic recovery; other task failures still require review.
+pause cancels automatic recovery. Temporary connectivity failures retry with
+persisted exponential backoff (1–30 minutes). Authorization retries never bypass
+revoked permissions; the owner must grant access again when required.
 Existing volume-unavailable errors are adopted by this recovery mechanism on the
 first upgrade. No folders are created to substitute for a missing volume.
 
@@ -145,7 +147,8 @@ relay. rclone's [token URL override](https://rclone.org/drive/#drive-token-url)
 requests fresh access tokens from the core broker using a random per-run capability.
 Provider refresh tokens and OAuth client secrets remain in core. Google Drive and
 Dropbox transfers no longer restart merely because an access token rotates.
-Revoked grants still stop work; two-way sync does not automatically reset its history.
+Revoked grants still stop work. History recovery follows the cloud-authoritative
+procedure described below, rather than an unrestricted resync.
 
 ## Supported architectures
 
@@ -166,3 +169,27 @@ only reports history recovery when rclone actually requires it; ordinary network
 and authorization errors retain their specific messages. Original failed test
 tasks can be replaced with a new task after preserving the folders, subject to
 the same initial requirement that one side be empty.
+
+## Cloud-authoritative history recovery
+
+When a two-way task loses its history, the next scheduled recovery copies the
+cloud state to the local folder. Replaced files and local-only files are moved
+into `.panasms-cloud-versions/recovery-<timestamp>-<id>`; they are never uploaded
+as part of recovery. Backups are excluded from synchronization and retained for
+manual review. Sufficient local free space and write permissions are required.
+
+The module verifies the cloud access marker and original local mount before
+reconciliation. Legacy initialized tasks without a marker receive one first.
+A missing or invalid marker on a task which already had one stops recovery for
+review. Network and authorization failures cannot be treated as an empty cloud.
+
+After reconciliation, content checks and a dry-run resync build a fresh history
+in a separate directory. The cloud listing must remain unchanged during this
+step. Previous history is retained outside the active work directory. Normal
+two-way synchronization then resumes; cloud priority applies only to recovery.
+Do not edit either folder during recovery. Manual pause cancels scheduled retries;
+pre-existing manually paused tasks remain paused after upgrade.
+
+The task details show recovery state and the next retry time. Quota, filesystem
+permissions, missing access markers and safety-limit failures still need user
+action; automatic recovery cannot repair these conditions.

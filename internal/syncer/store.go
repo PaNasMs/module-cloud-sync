@@ -41,6 +41,8 @@ type Task struct {
 	Snapshot    string `json:"snapshot"`
 	Error       string `json:"error"`
 	LastSync    int64  `json:"last_sync"`
+	RetryAt     int64  `json:"retry_at"`
+	RetryCount  int    `json:"retry_count"`
 }
 type History struct {
 	ID      int64  `json:"id"`
@@ -170,6 +172,28 @@ UPDATE tasks SET recovery='volume' WHERE paused=1 AND status='error' AND error='
 			return nil, err
 		}
 	}
+	var retryColumn int
+	if err = db.QueryRow("SELECT count(*) FROM pragma_table_info('tasks') WHERE name='retry_at'").Scan(&retryColumn); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if retryColumn == 0 {
+		var tx *sql.Tx
+		tx, err = db.Begin()
+		if err == nil {
+			_, err = tx.Exec(`ALTER TABLE tasks ADD COLUMN retry_at INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE tasks ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;`)
+			if err == nil {
+				err = tx.Commit()
+			} else {
+				_ = tx.Rollback()
+			}
+		}
+		if err != nil {
+			db.Close()
+			return nil, err
+		}
+	}
 	e := &Engine{DB: db, Root: root, Runtime: runtime, Owner: owner, Broker: broker, tokens: map[string]lease{}, HTTP: defaultHTTP(), Mount: mountIdentity, Local: localFolder}
 	e.Runner = e.runProcess
 	return e, nil
@@ -204,7 +228,7 @@ func (e *Engine) account(id string) (Account, error) {
 	return Account{}, problem("Account not found")
 }
 func (e *Engine) tasks() ([]Task, error) {
-	rows, err := e.DB.Query("SELECT id,account,name,local,remote,direction,mount,paused,status,dirty,initialized,snapshot,error,last_sync,recovery FROM tasks ORDER BY last_sync")
+	rows, err := e.DB.Query("SELECT id,account,name,local,remote,direction,mount,paused,status,dirty,initialized,snapshot,error,last_sync,recovery,retry_at,retry_count FROM tasks ORDER BY last_sync")
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +236,7 @@ func (e *Engine) tasks() ([]Task, error) {
 	out := []Task{}
 	for rows.Next() {
 		var t Task
-		if err = rows.Scan(&t.ID, &t.Account, &t.Name, &t.Local, &t.Remote, &t.Direction, &t.Mount, &t.Paused, &t.Status, &t.Dirty, &t.Initialized, &t.Snapshot, &t.Error, &t.LastSync, &t.Recovery); err != nil {
+		if err = rows.Scan(&t.ID, &t.Account, &t.Name, &t.Local, &t.Remote, &t.Direction, &t.Mount, &t.Paused, &t.Status, &t.Dirty, &t.Initialized, &t.Snapshot, &t.Error, &t.LastSync, &t.Recovery, &t.RetryAt, &t.RetryCount); err != nil {
 			return nil, err
 		}
 		out = append(out, t)

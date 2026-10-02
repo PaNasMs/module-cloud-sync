@@ -148,7 +148,7 @@ func (e *Engine) taskAction(kind, id string) (any, error) {
 	var result int64
 	switch kind {
 	case "task.pause":
-		r, err := e.DB.Exec("UPDATE tasks SET paused=1,recovery='' WHERE id=?", id)
+		r, err := e.DB.Exec("UPDATE tasks SET paused=1,recovery='',retry_at=0,retry_count=0 WHERE id=?", id)
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +163,7 @@ func (e *Engine) taskAction(kind, id string) (any, error) {
 			_ = e.event(id, "removed", "Task removed; local and cloud files preserved")
 		}
 	case "task.resume", "task.run":
-		r, err := e.DB.Exec("UPDATE tasks SET paused=0,dirty=1,status='queued',error='',recovery='' WHERE id=? AND status!='running'", id)
+		r, err := e.DB.Exec("UPDATE tasks SET paused=0,dirty=1,status='queued',error='',retry_at=0,retry_count=0 WHERE id=? AND status!='running'", id)
 		if err != nil {
 			return nil, err
 		}

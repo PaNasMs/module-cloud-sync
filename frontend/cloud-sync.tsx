@@ -58,6 +58,7 @@ type Task = {
   direction: string;
   paused: number;
   recovery?: string;
+  retry_at?: number;
   status: string;
   error: string;
   last_sync: number;
@@ -618,13 +619,28 @@ export function CloudSyncPage() {
                         <dt>{tr("status")}</dt>
                         <dd>
                           {tr(
-                            selectedTask.recovery
+                            selectedTask.recovery === "volume"
                               ? "waitingVolume"
-                              : selectedTask.paused
-                                ? "paused"
-                                : selectedTask.status,
+                              : selectedTask.retry_at
+                                ? "waitingRetry"
+                                : selectedTask.recovery === "history" &&
+                                    !selectedTask.paused
+                                  ? "recovering"
+                                  : selectedTask.paused
+                                    ? "paused"
+                                    : selectedTask.status,
                           )}
                         </dd>
+                        {!!selectedTask.retry_at && (
+                          <>
+                            <dt>{tr("nextRetry")}</dt>
+                            <dd>
+                              {new Date(
+                                selectedTask.retry_at * 1000,
+                              ).toLocaleString()}
+                            </dd>
+                          </>
+                        )}
                         <dt>{tr("lastSync")}</dt>
                         <dd>
                           {selectedTask.last_sync
