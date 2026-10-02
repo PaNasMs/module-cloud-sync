@@ -219,7 +219,13 @@ func (e *Engine) listing(ctx context.Context, a Account, remote string) (string,
 		if i > 0 && entries[i-1].Path == en.Path {
 			return "", nil, problem("Duplicate cloud filenames must be resolved first")
 		}
-		stable = append(stable, []any{en.Path, en.Size, en.ModTime, en.IsDir, en.Hashes})
+		modified := en.ModTime
+		if en.IsDir {
+			// Dropbox keeps no folder times: rclone reports the time of the
+			// listing, which would make every snapshot of the same content differ.
+			modified = ""
+		}
+		stable = append(stable, []any{en.Path, en.Size, modified, en.IsDir, en.Hashes})
 	}
 	sum := sha256.Sum256([]byte(marshal(stable)))
 	return hex.EncodeToString(sum[:]), entries, nil

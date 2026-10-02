@@ -2,6 +2,7 @@ package syncer
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -155,4 +156,30 @@ func TestRealRcloneInterruptedFirstSyncCompletes(t *testing.T) {
 		t.Fatal("normal sync after completing the first one", err)
 	}
 	read(task.Local, "later", "next pass")
+}
+
+func TestListingSnapshotIgnoresFolderTimes(t *testing.T) {
+	e := fixture(t)
+	listed := 0
+	e.Runner = func(context.Context, Account, []string, func() error) ([]byte, error) {
+		listed++
+		// Dropbox reports the listing time for folders; file times are real.
+		return []byte(fmt.Sprintf(`[{"Path":"docs","Name":"docs","IsDir":true,"Size":-1,"ModTime":"2026-10-02T22:0%d:00Z"},
+{"Path":"docs/a.txt","Name":"a.txt","IsDir":false,"Size":3,"ModTime":"2026-10-01T10:00:00Z"}]`, listed)), nil
+	}
+	first, _, err := e.listing(context.Background(), Account{}, "folder")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _, _ := e.listing(context.Background(), Account{}, "folder")
+	if first != second {
+		t.Fatal("unchanged cloud content produced different snapshots")
+	}
+	e.Runner = func(context.Context, Account, []string, func() error) ([]byte, error) {
+		return []byte(`[{"Path":"docs","Name":"docs","IsDir":true,"Size":-1,"ModTime":"2026-10-02T22:09:00Z"},
+{"Path":"docs/a.txt","Name":"a.txt","IsDir":false,"Size":3,"ModTime":"2026-10-02T11:00:00Z"}]`), nil
+	}
+	if changed, _, _ := e.listing(context.Background(), Account{}, "folder"); changed == first {
+		t.Fatal("changed file time not detected")
+	}
 }

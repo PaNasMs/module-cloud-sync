@@ -194,6 +194,9 @@ It first uploads local files that the cloud lacks, without replacing any cloud
 file, and then continues with the same cloud-authoritative reconciliation, which
 replaces partially downloaded files and keeps the replaced copies in the backup.
 
+Cloud snapshots compare file paths, sizes, times and hashes, and folder paths
+without folder times: Dropbox keeps none and reports the time of the listing.
+
 After reconciliation, content checks and a dry-run resync build a fresh history
 in a separate directory. The cloud listing must remain unchanged during this
 step. Previous history is retained outside the active work directory. Normal
