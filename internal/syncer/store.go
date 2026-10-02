@@ -122,6 +122,8 @@ func Open(root, runtime, owner string, broker Broker) (*Engine, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Transactions must use only tx methods until commit/rollback; DB calls here
+	// would wait forever for this sole connection. Keep external I/O outside transactions.
 	db.SetMaxOpenConns(1)
 	schema := `CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY,provider TEXT NOT NULL,label TEXT NOT NULL,identity TEXT NOT NULL,cursor TEXT NOT NULL DEFAULT '',error TEXT NOT NULL DEFAULT '',grant_id TEXT NOT NULL DEFAULT '',owner TEXT NOT NULL DEFAULT '');
  CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY,account TEXT NOT NULL REFERENCES accounts(id),name TEXT NOT NULL,local TEXT NOT NULL,remote TEXT NOT NULL,direction TEXT NOT NULL,mount TEXT NOT NULL,paused INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'queued',dirty INTEGER NOT NULL DEFAULT 1,initialized INTEGER NOT NULL DEFAULT 0,snapshot TEXT NOT NULL DEFAULT '',error TEXT NOT NULL DEFAULT '',last_sync INTEGER NOT NULL DEFAULT 0);

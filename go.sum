@@ -6,6 +6,8 @@ github.com/PaNasMs/module-sdk v0.0.0-20260930112240-0bbb2f8bea24 h1:ichgF+5VvU2G
 github.com/PaNasMs/module-sdk v0.0.0-20260930112240-0bbb2f8bea24/go.mod h1:vNMaLVCHbahLGQZjzcJEFSvop9PxNlYFXFEIBzWyw8k=
 github.com/PaNasMs/module-sdk v0.0.0-20261002093331-8ca09cf8ce82 h1:uoP0aLMYoSuCoJkv0DBmNVVckmsumzCd4n+dEIIOte0=
 github.com/PaNasMs/module-sdk v0.0.0-20261002093331-8ca09cf8ce82/go.mod h1:vNMaLVCHbahLGQZjzcJEFSvop9PxNlYFXFEIBzWyw8k=
+github.com/PaNasMs/module-sdk v0.0.0-20261002131905-21b477cb34f6 h1:+3aodD+7BK0IRYnhrGlkSd5H3/rjPR/Zk1mtRkrct0I=
+github.com/PaNasMs/module-sdk v0.0.0-20261002131905-21b477cb34f6/go.mod h1:vNMaLVCHbahLGQZjzcJEFSvop9PxNlYFXFEIBzWyw8k=
 github.com/mattn/go-sqlite3 v1.14.52 h1:wVbm2Qnf4OXkqhBTSPuCRZDRnxfbVrrmiCEroVdog8U=
 github.com/mattn/go-sqlite3 v1.14.52/go.mod h1:6JTjA44L93a0QCyJef5YvlPoKXntQPjzWv5gtm9sB6w=
 github.com/msteinert/pam/v2 v2.1.0 h1:er5F9TKV5nGFuTt12ubtqPHEUdeBwReP7vd3wovidGY=

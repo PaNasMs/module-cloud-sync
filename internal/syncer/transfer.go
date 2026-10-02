@@ -57,7 +57,7 @@ func (e *Engine) runProcess(ctx context.Context, a Account, args []string, check
 	argv := []string{"--config", config, "--cache-dir", filepath.Join(e.Root, "cache"), "--contimeout", "15s", "--timeout", "60s", "--retries", "1", "--low-level-retries", "2", "--drive-skip-gdocs", "--drive-skip-shortcuts"}
 	argv = append(argv, args...)
 	cmd := exec.Command("rclone", argv...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	out := &limitedBuffer{limit: 32 << 20}
 	logs := &limitedBuffer{limit: 4 << 20}
 	cmd.Stdout = out

@@ -82,7 +82,6 @@ func process(ctx context.Context, account *user.User, mode string) (*exec.Cmd, e
 	cmd.Stderr = os.Stderr
 	cmd.Env = []string{"PANASMS_MAINTENANCE_LOCK=" + os.Getenv("PANASMS_MAINTENANCE_LOCK"), "HOME=" + dir, "XDG_CACHE_HOME=" + dir + "/cache", "LANG=C.UTF-8", "PATH=/usr/bin:/bin"}
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Pdeathsig:  syscall.SIGTERM,
 		Setpgid:    true,
 		Credential: &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid), Groups: groups},
 	}
