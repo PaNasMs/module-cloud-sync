@@ -1121,7 +1121,7 @@ export function CloudSyncPage() {
                   disabled={busy}
                   onClick={() => confirm && void perform(confirm)}
                 >
-                  {tr("confirm")}
+                  {tr(confirm?.action === "account.remove" ? "disconnect" : "removeTask")}
                 </Button>
               </div>
             }
