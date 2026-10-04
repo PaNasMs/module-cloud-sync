@@ -137,7 +137,7 @@ func transferFailure(log string) error {
 	switch {
 	case strings.Contains(text, "max-delete"), strings.Contains(text, "all files were changed"), strings.Contains(text, "too many deletes"):
 		return problem("Safety check stopped the task: too many files changed or were deleted. Review both folders before retrying.")
-	case strings.Contains(text, "must run --resync"), strings.Contains(text, "cannot find prior"), strings.Contains(text, "run --resync to recover"):
+	case strings.Contains(text, "must run --resync"), strings.Contains(text, "cannot find prior"), strings.Contains(text, "run --resync to recover"), strings.Contains(text, "differences found") && strings.Contains(text, "failed to check"):
 		return problem(recoveryMessage)
 	case strings.Contains(text, "invalid_grant"), strings.Contains(text, "unauthorized"), strings.Contains(text, "invalid_access_token"):
 		return problem("Account authorization expired or access was denied. Reconnect the account.")

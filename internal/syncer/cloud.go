@@ -327,7 +327,14 @@ func (e *Engine) saveAccount(ctx context.Context, p map[string]any) (any, error)
 	if err != nil {
 		return nil, err
 	}
-	if _, err = tx.Exec("UPDATE tasks SET dirty=1,error='',status='queued' WHERE account=? AND status!='running'", id); err != nil {
+	if _, err = tx.Exec(`UPDATE tasks SET dirty=1,
+ paused=CASE WHEN recovery='authorization' THEN 0 ELSE paused END,
+ error=CASE WHEN recovery IN ('','authorization') THEN '' ELSE error END,
+ status=CASE WHEN recovery IN ('','authorization') THEN 'queued' ELSE status END,
+ retry_at=CASE WHEN recovery='authorization' THEN 0 ELSE retry_at END,
+ retry_count=CASE WHEN recovery='authorization' THEN 0 ELSE retry_count END,
+ recovery=CASE WHEN recovery='authorization' THEN '' ELSE recovery END
+ WHERE account=? AND status!='running'`, id); err != nil {
 		return nil, err
 	}
 	if err = tx.Commit(); err != nil {

@@ -360,9 +360,10 @@ export function CloudSyncPage() {
           (provider === "drive" ? "Google Drive" : "Dropbox"),
         grantId,
       });
-      await query.refetch();
+      const refreshed = await query.refetch();
       setAccountID(result.id);
-      setSelectedID("account:" + result.id);
+      const existingTask = refreshed.data?.tasks.find((task) => task.account === result.id);
+      setSelectedID(existingTask?.id ?? "account:" + result.id);
       setTaskAccount(result.id);
       if (reconnect) setDialog(null);
       else {

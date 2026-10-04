@@ -440,6 +440,7 @@ func TestTransferFailureClassificationAndRedaction(t *testing.T) {
 		{"Failed to bisync: unknown failure", "Cloud operation failed. Check account access, folder availability and quota; reconnect if necessary."},
 		{"cannot find prior Path1 or Path2 listings", recoveryMessage},
 		{"Bisync aborted. Must run --resync to recover.", recoveryMessage},
+		{"4 differences found\nFailed to check with 4 errors", recoveryMessage},
 		{"too many deletes", "Safety check stopped the task: too many files changed or were deleted. Review both folders before retrying."},
 	} {
 		if got := transferFailure(tc.log).Error(); got != tc.want {
@@ -717,5 +718,44 @@ func TestDropboxFoldersOverlapIgnoringCase(t *testing.T) {
 	_, err := e.Action(context.Background(), map[string]any{"action": "task.create", "account": accountID, "local": t.TempDir(), "remote": "invoices/2026", "direction": "download"})
 	if err == nil || !strings.Contains(err.Error(), "must not overlap") {
 		t.Fatal(err)
+	}
+}
+
+func TestReconnectResumesAuthorizationRecoveryOnly(t *testing.T) {
+	for _, recovery := range []string{"authorization", "", "volume", "history"} {
+		t.Run("recovery_"+recovery, func(t *testing.T) {
+			e := fixture(t)
+			task := addTask(t, e, "both")
+			e.DB.Exec("UPDATE accounts SET provider='drive',grant_id=?,owner='owner'", strings.Repeat("a", 32))
+			e.DB.Exec("UPDATE tasks SET paused=1,status='error',error='existing error',recovery=?,retry_at=123,retry_count=4 WHERE id=?", recovery, task.ID)
+			e.HTTP = doFunc(func(r *http.Request) (*http.Response, error) {
+				body := `{"user":{"permissionId":"owner"}}`
+				if strings.Contains(r.URL.Path, "startPageToken") {
+					body = `{"startPageToken":"new-cursor"}`
+				}
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
+			})
+			if _, err := e.saveAccount(context.Background(), map[string]any{"id": accountID, "provider": "drive", "grantId": strings.Repeat("b", 32)}); err != nil {
+				t.Fatal(err)
+			}
+			var paused, attempts int
+			var retry int64
+			var status, remaining, message string
+			if err := e.DB.QueryRow("SELECT paused,status,recovery,error,retry_at,retry_count FROM tasks WHERE id=?", task.ID).Scan(&paused, &status, &remaining, &message, &retry, &attempts); err != nil {
+				t.Fatal(err)
+			}
+			if recovery == "authorization" {
+				if paused != 0 || status != "queued" || remaining != "" || message != "" || retry != 0 || attempts != 0 {
+					t.Fatal("authorization recovery was not resumed", paused, status, remaining, message, retry, attempts)
+				}
+			} else {
+				if paused != 1 || remaining != recovery {
+					t.Fatal("manual pause or unrelated recovery changed", paused, remaining)
+				}
+				if recovery != "" && (status != "error" || message != "existing error" || retry != 123 || attempts != 4) {
+					t.Fatal("unrelated recovery was reset", status, message, retry, attempts)
+				}
+			}
+		})
 	}
 }
