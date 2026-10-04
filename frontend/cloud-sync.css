@@ -16,13 +16,13 @@
   border: 1px solid transparent;
   background: transparent;
   color: inherit;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   padding: 12px;
   cursor: pointer;
 }
 .cloud-sync .cloud-account[aria-current="true"] {
   background: var(--selection);
-  border-color: var(--accent);
+  border-color: var(--second);
 }
 .cloud-sync .cloud-account span {
   min-width: 0;
@@ -30,7 +30,7 @@
 }
 .cloud-sync small {
   display: block;
-  color: var(--muted);
+  color: var(--mute);
 }
 .cloud-sync .cloud-content {
   min-width: 0;
@@ -51,7 +51,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--muted);
+  color: var(--mute);
 }
 .cloud-sync .cloud-tabs {
   display: flex;
@@ -59,8 +59,8 @@
   margin: 12px 0;
 }
 .cloud-sync .cloud-tabs button[aria-selected="true"] {
-  color: var(--accent);
-  border-color: var(--accent);
+  color: var(--second);
+  border-color: var(--second);
 }
 .cloud-sync-dialog {
   width: min(620px, calc(100vw - 32px));
@@ -89,8 +89,8 @@
   display: block;
   padding: 10px;
   overflow-wrap: anywhere;
-  background: var(--bg);
-  border-radius: 8px;
+  background: var(--wall);
+  border-radius: var(--radius-sm);
 }
 @media (max-width: 760px) {
   .cloud-sync {
@@ -121,16 +121,16 @@
   padding: 0;
   margin: 0 0 16px;
   list-style: none;
-  color: var(--muted);
+  color: var(--mute);
 }
 .cloud-steps li {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .cloud-steps li[aria-current] {
-  color: var(--accent);
+  color: var(--second);
   font-weight: 600;
 }
 .cloud-steps li > span {
@@ -178,7 +178,7 @@
   margin: 0;
 }
 .cloud-review dt {
-  color: var(--muted);
+  color: var(--mute);
 }
 .cloud-review dd {
   margin: 0;
@@ -216,8 +216,8 @@
 }
 .cloud-sync-settings .cloud-nav-label small,
 .cloud-nav-caption {
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 0.8125rem;
+  color: var(--mute);
 }
 .cloud-nav-caption {
   padding: 16px 10px 4px;
@@ -255,8 +255,8 @@
   border-bottom: 1px solid var(--line);
 }
 .cloud-history time {
-  color: var(--muted);
-  font-size: 13px;
+  color: var(--mute);
+  font-size: 0.8125rem;
 }
 .cloud-history li span {
   overflow-wrap: anywhere;
@@ -282,8 +282,8 @@
   padding-top: 12px;
 }
 .cloud-local-tree h3 {
-  font-size: 13px;
-  color: var(--muted);
+  font-size: 0.8125rem;
+  color: var(--mute);
   margin: 0 0 8px;
 }
 .cloud-local-tree ul {
@@ -298,7 +298,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .cloud-tree-row[data-selected="true"] {
   background: var(--selection);
@@ -323,7 +323,7 @@
   padding: 8px;
   border: 0;
   background: transparent;
-  color: var(--text);
+  color: var(--ink);
   cursor: pointer;
 }
 .cloud-tree-name span {
@@ -332,16 +332,16 @@
 }
 .cloud-tree-name small {
   display: block;
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 0.8125rem;
+  color: var(--mute);
 }
 .cloud-tree-name:disabled {
   opacity: 0.55;
   cursor: default;
 }
 .cloud-tree-note {
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 0.8125rem;
+  color: var(--mute);
   padding: 4px 8px 4px 38px;
   margin: 0;
 }
