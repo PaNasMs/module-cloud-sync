@@ -25,7 +25,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@panasms/module-sdk": "https://github.com/PaNasMs/module-sdk/archive/d85753c0cf116c4ae72c6d9318df91c631655757.tar.gz",
+    "@panasms/module-sdk": "https://github.com/PaNasMs/module-sdk/archive/5b4032ef78f84066dcc298cb59c96558efd4eabc.tar.gz",
     "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
