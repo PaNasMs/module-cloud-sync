@@ -173,7 +173,7 @@
 }
 .cloud-review {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, max-content) minmax(45%, 1fr);
   gap: 12px 20px;
   margin: 0;
 }
@@ -204,29 +204,6 @@
     gap: 8px;
     flex-wrap: wrap;
   }
-}
-.cloud-sync-settings .cloud-nav-label {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  display: grid;
-  gap: 3px;
-}
-.cloud-sync-settings .cloud-nav-label strong {
-  font-weight: 500;
-}
-.cloud-sync-settings .cloud-nav-label small,
-.cloud-nav-caption {
-  font-size: 0.8125rem;
-  color: var(--mute);
-}
-.cloud-nav-caption {
-  padding: 16px 10px 4px;
-}
-.cloud-sync-settings .settings-nav {
-  align-self: start;
-}
-.cloud-sync-settings .settings-nav button {
-  cursor: pointer;
 }
 .cloud-sync-settings .cloud-paths {
   display: grid;
@@ -357,4 +334,31 @@
 .cloud-location-path > span {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+/* Each part of a task is its own panel; the content column itself has no backing. */
+.cloud-sync-settings > .settings-content {
+  padding: 0;
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.cloud-sync-settings > .settings-content .general-settings > .surface {
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  -webkit-backdrop-filter: var(--glass);
+  backdrop-filter: var(--glass);
+}
+@media (max-width: 639px) {
+  .cloud-review {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .cloud-review dd {
+    margin-bottom: 10px;
+    font-weight: 700;
+  }
+  .cloud-sync-settings > .settings-content .general-settings > .surface {
+    padding: var(--space-4);
+  }
 }
