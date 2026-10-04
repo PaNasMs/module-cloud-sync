@@ -88,6 +88,8 @@ type Connection = { id: string; provider: string; email: string; name: string };
 const empty: State = { accounts: [], tasks: [], history: [] };
 const providerIcon = (id: string) =>
   id === "drive" ? mdiGoogleDrive : id === "dropbox" ? mdiDropbox : mdiCloudSyncOutline;
+const providerLabel = (id?: string) =>
+  id === "drive" ? "Google Drive" : id === "dropbox" ? "Dropbox" : tr("title");
 async function api<T>(body?: unknown): Promise<T> {
   const result = await request<T & { error?: string }>(
     "module-api/cloud-sync/" + (body ? "action" : "state"),
@@ -479,7 +481,7 @@ export function CloudSyncPage() {
               id: t.id,
               title: t.name,
               group: tr("tasks"),
-              note: tr(taskStatus(t)),
+              note: `${providerLabel(state.accounts.find((a) => a.id === t.account)?.provider)} · ${tr(taskStatus(t))}`,
               tone: t.error
                 ? ("danger" as const)
                 : t.paused
