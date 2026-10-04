@@ -7,37 +7,9 @@
   padding: 14px;
   align-self: start;
 }
-.cloud-sync .cloud-account {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 10px;
-  text-align: left;
-  border: 1px solid transparent;
-  background: transparent;
-  color: inherit;
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  cursor: pointer;
-}
-.cloud-sync .cloud-account[aria-current="true"] {
-  background: var(--selection);
-  border-color: var(--second);
-}
-.cloud-sync .cloud-account span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
 .cloud-sync small {
   display: block;
   color: var(--mute);
-}
-.cloud-sync .cloud-content {
-  min-width: 0;
-}
-.cloud-sync .cloud-task {
-  padding: 18px;
-  margin-top: 12px;
 }
 .cloud-sync .cloud-paths {
   display: grid;
@@ -46,21 +18,6 @@
   align-items: center;
   overflow-wrap: anywhere;
   margin: 14px 0;
-}
-.cloud-sync .cloud-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--mute);
-}
-.cloud-sync .cloud-tabs {
-  display: flex;
-  gap: 8px;
-  margin: 12px 0;
-}
-.cloud-sync .cloud-tabs button[aria-selected="true"] {
-  color: var(--second);
-  border-color: var(--second);
 }
 .cloud-sync-dialog {
   width: min(620px, calc(100vw - 32px));
@@ -78,20 +35,6 @@
   width: 100%;
   box-sizing: border-box;
 }
-.cloud-sync-dialog .cloud-folders {
-  max-height: 170px;
-  overflow: auto;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.cloud-sync-dialog .cloud-helper {
-  display: block;
-  padding: 10px;
-  overflow-wrap: anywhere;
-  background: var(--wall);
-  border-radius: var(--radius-sm);
-}
 @media (max-width: 760px) {
   .cloud-sync {
     grid-template-columns: 1fr;
@@ -99,18 +42,6 @@
   .cloud-sync .cloud-paths {
     grid-template-columns: 1fr;
   }
-}
-.cloud-sync .cloud-sidebar {
-  border-right: 1px solid var(--line);
-  padding: 0 14px 0 0;
-}
-.cloud-sync .cloud-task {
-  box-shadow: none;
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  padding: 16px 0;
 }
 .cloud-sync-dialog {
   width: min(700px, calc(100vw - 32px));
@@ -192,11 +123,6 @@
   justify-content: flex-end;
 }
 @media (max-width: 760px) {
-  .cloud-sync .cloud-sidebar {
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    padding: 0 0 12px;
-  }
   .cloud-folder-pair {
     grid-template-columns: 1fr;
   }
