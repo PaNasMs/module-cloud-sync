@@ -24,7 +24,7 @@ import {
   mdiFolderOutline,
   mdiAlertCircleOutline,
 } from "@mdi/js";
-import { Button, Icon, Notice } from "@panasms/ui";
+import { Button, Icon, Notice, SectionNav } from "@panasms/ui";
 import { registerModule } from "@panasms/runtime";
 import { request } from "@panasms/client";
 import { useQueryValue } from "@panasms/navigation";
@@ -63,6 +63,16 @@ type Task = {
   error: string;
   last_sync: number;
 };
+const taskStatus = (task: Task) =>
+  task.recovery === "volume"
+    ? "waitingVolume"
+    : task.retry_at
+      ? "waitingRetry"
+      : task.recovery === "history" && !task.paused
+        ? "recovering"
+        : task.paused
+          ? "paused"
+          : task.status;
 type State = {
   accounts: Account[];
   tasks: Task[];
@@ -454,60 +464,47 @@ export function CloudSyncPage() {
       {((error && !dialog && !confirm) || query.error) && (
         <Notice error>{error || query.error?.message}</Notice>
       )}
-      <div className="settings-layout settings-page cloud-sync-settings">
-        <nav className="settings-nav" aria-label={tr("tasks")}>
-          {state.tasks.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              data-state={selectedTask?.id === t.id ? "active" : "inactive"}
-              aria-current={selectedTask?.id === t.id ? "page" : undefined}
-              onClick={() => {
-                setSelectedID(t.id);
-                setError("");
-              }}
-            >
-              <Icon
-                path={
-                  t.error
-                    ? mdiAlertCircleOutline
-                    : t.paused
-                      ? mdiPause
-                      : mdiCloudSyncOutline
-                }
-              />
-              <span className="cloud-nav-label">
-                <strong>{t.name}</strong>
-                <small>
-                  {state.accounts.find((a) => a.id === t.account)?.label}
-                </small>
-              </span>
-            </button>
-          ))}
-          {unconfigured.length > 0 && (
-            <span className="cloud-nav-caption">{tr("withoutTasks")}</span>
-          )}
-          {unconfigured.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              data-state={
-                !selectedTask && account?.id === a.id ? "active" : "inactive"
-              }
-              aria-current={
-                !selectedTask && account?.id === a.id ? "page" : undefined
-              }
-              onClick={() => {
-                setSelectedID("account:" + a.id);
-                setError("");
-              }}
-            >
-              <Icon path={providerIcon(a.provider)} />
-              <span className="cloud-nav-label">{a.label}</span>
-            </button>
-          ))}
-          {!state.accounts.length && <p className="muted">{tr("noTasks")}</p>}
-        </nav>
+      <div className="section-layout settings-page cloud-sync-settings">
+        <SectionNav
+          label={tr("tasks")}
+          objects
+          tabs={false}
+          value={selectedTask?.id ?? (account ? "account:" + account.id : "")}
+          onChange={(id) => {
+            setSelectedID(id);
+            setError("");
+          }}
+          items={[
+            ...state.tasks.map((t) => ({
+              id: t.id,
+              title: t.name,
+              group: tr("tasks"),
+              note: tr(taskStatus(t)),
+              tone: t.error
+                ? ("danger" as const)
+                : t.paused
+                  ? ("idle" as const)
+                  : t.status === "running"
+                    ? ("busy" as const)
+                    : t.retry_at || t.recovery
+                      ? ("warn" as const)
+                      : ("ok" as const),
+            })),
+            ...unconfigured.map((a) => ({
+              id: "account:" + a.id,
+              title: a.label,
+              group: tr("withoutTasks"),
+              icon: providerIcon(a.provider),
+            })),
+          ]}
+          footer={
+            <Button onClick={() => openAccount(null)}>
+              <Icon path={mdiPlus} />
+              {tr("addTask")}
+            </Button>
+          }
+        />
+        {!state.accounts.length && <Notice>{tr("noTasks")}</Notice>}
         <div className="settings-content">
           <div className="general-settings">
             {account ? (
@@ -618,18 +615,7 @@ export function CloudSyncPage() {
                         <dd>{tr(selectedTask.direction)}</dd>
                         <dt>{tr("status")}</dt>
                         <dd>
-                          {tr(
-                            selectedTask.recovery === "volume"
-                              ? "waitingVolume"
-                              : selectedTask.retry_at
-                                ? "waitingRetry"
-                                : selectedTask.recovery === "history" &&
-                                    !selectedTask.paused
-                                  ? "recovering"
-                                  : selectedTask.paused
-                                    ? "paused"
-                                    : selectedTask.status,
-                          )}
+                          {tr(taskStatus(selectedTask))}
                         </dd>
                         {!!selectedTask.retry_at && (
                           <>
