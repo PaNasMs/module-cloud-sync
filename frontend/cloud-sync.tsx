@@ -722,6 +722,13 @@ export function CloudSyncPage() {
           <DialogContent
             busy={busy}
             className="settings-dialog cloud-sync-dialog"
+            onEscapeKeyDown={(event) => {
+              // The folder picker is an inner view of the wizard: Escape returns to the form.
+              if (picker && !busy) {
+                event.preventDefault();
+                setPicker(null);
+              }
+            }}
             dirty={
               !!local ||
               remoteChosen ||
