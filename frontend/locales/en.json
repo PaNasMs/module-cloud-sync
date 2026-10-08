@@ -67,7 +67,7 @@
   "server14": "Reconnect using the same cloud account",
   "server15": "Remove tasks before disconnecting this account",
   "server16": "Pause the task and wait for the transfer to stop",
-  "server17": "A transfer is running. Pause it before changing connections or browsing cloud folders.",
+  "server17": "A transfer is running. Pause it before reconnecting or removing an existing account.",
   "server18": "Transfer interrupted; review before resuming.",
   "server19": "Cloud check failed; retrying later.",
   "server20": "Synchronization failed; review before retrying.",

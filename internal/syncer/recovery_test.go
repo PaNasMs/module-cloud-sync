@@ -134,7 +134,7 @@ func TestRealRcloneLegacyRecoveryAndPause(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(task.Remote, "local-file")); !os.IsNotExist(err) {
 		t.Fatal("legacy local-only file uploaded", err)
 	}
-	runner := e.Runner
+	runner := e.runProcess
 	e.Runner = func(ctx context.Context, a Account, args []string, check func() error) ([]byte, error) {
 		if args[0] == "sync" {
 			if _, err := e.taskAction("task.pause", task.ID); err != nil {

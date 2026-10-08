@@ -19,10 +19,30 @@ func (e *Engine) Action(ctx context.Context, p map[string]any) (any, error) {
 	if strings.HasPrefix(kind, "task.") && kind != "task.create" {
 		return e.taskAction(kind, str(p, "id"))
 	}
-	if !e.cloudMu.TryLock() {
-		return nil, problem("A transfer is running. Pause it before changing connections or browsing cloud folders.")
+	e.actionMu.Lock()
+	defer e.actionMu.Unlock()
+	// Replacing or removing credentials must not race the worker using them.
+	if kind == "account.remove" || kind == "account.save" && str(p, "id") != "" {
+		if !e.cloudMu.TryLock() {
+			return nil, problem("A transfer is running. Pause it before reconnecting or removing an existing account.")
+		}
+		defer e.cloudMu.Unlock()
+		return e.cloudAction(ctx, p)
 	}
-	defer e.cloudMu.Unlock()
+	// Setup uses its own token cache and rclone configs while transfers keep running.
+	runtime, err := os.MkdirTemp(e.Runtime, "setup-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(runtime)
+	session := &Engine{DB: e.DB, Root: e.Root, Runtime: runtime, Owner: e.Owner, Broker: e.Broker,
+		tokens: map[string]lease{}, HTTP: e.HTTP, Runner: e.Runner, Mount: e.Mount, Local: e.Local}
+	return session.cloudAction(ctx, p)
+}
+
+func (e *Engine) cloudAction(ctx context.Context, p map[string]any) (any, error) {
+	kind := str(p, "action")
+
 	switch kind {
 	case "account.save":
 		return e.saveAccount(ctx, p)
@@ -60,7 +80,7 @@ func (e *Engine) Action(ctx context.Context, p map[string]any) (any, error) {
 		if _, err = e.ensure(ctx, a, true); err != nil {
 			return nil, err
 		}
-		raw, err := e.Runner(ctx, a, []string{"lsjson", "cloud:" + path, "--dirs-only"}, nil)
+		raw, err := e.run(ctx, a, []string{"lsjson", "cloud:" + path, "--dirs-only"}, nil)
 		if err != nil {
 			return nil, err
 		}

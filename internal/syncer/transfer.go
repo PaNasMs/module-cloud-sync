@@ -29,6 +29,14 @@ const recoveryMessage = "Two-way sync history will be rebuilt automatically from
 const maxDelete = "5000"
 
 type Runner func(context.Context, Account, []string, func() error) ([]byte, error)
+
+func (e *Engine) run(ctx context.Context, a Account, args []string, check func() error) ([]byte, error) {
+	if e.Runner != nil {
+		return e.Runner(ctx, a, args, check)
+	}
+	return e.runProcess(ctx, a, args, check)
+}
+
 type limitedBuffer struct {
 	sync.Mutex
 	b        bytes.Buffer
@@ -268,7 +276,7 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 				return err
 			}
 		}
-		_, err = e.Runner(ctx, a, args, check)
+		_, err = e.run(ctx, a, args, check)
 		if !errors.Is(err, errRotated) {
 			break
 		}

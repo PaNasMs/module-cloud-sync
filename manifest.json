@@ -2,7 +2,7 @@
   "id": "cloud-sync",
   "title": "Cloud Sync",
   "description": "Synchronize selected folders with multiple Google Drive and Dropbox accounts.",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "api": 1,
   "core": ">=0.2.15,<0.3.0",
   "architecture": "arm64",

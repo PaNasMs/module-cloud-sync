@@ -202,7 +202,7 @@ type Entry struct {
 }
 
 func (e *Engine) listing(ctx context.Context, a Account, remote string) (string, []Entry, error) {
-	raw, err := e.Runner(ctx, a, []string{"lsjson", "cloud:" + remote, "-R", "--hash"}, nil)
+	raw, err := e.run(ctx, a, []string{"lsjson", "cloud:" + remote, "-R", "--hash"}, nil)
 	if err != nil {
 		return "", nil, err
 	}
