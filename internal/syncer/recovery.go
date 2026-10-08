@@ -44,7 +44,7 @@ func (e *Engine) recoverHistory(ctx context.Context, a Account, t Task, work str
 		if err := check(); err != nil {
 			return err
 		}
-		_, err := e.Runner(ctx, a, append(args, filters...), check)
+		_, err := e.run(ctx, a, append(args, filters...), check)
 		return err
 	}
 	if t.Initialized < 0 && t.LastSync == 0 {
@@ -66,14 +66,14 @@ func (e *Engine) recoverHistory(ctx context.Context, a Account, t Task, work str
 		if err = atomicFile(filepath.Join(work, "access-marker-source"), []byte(t.ID+"\n")); err != nil {
 			return err
 		}
-		if _, err = e.Runner(ctx, a, []string{"copyto", filepath.Join(work, "access-marker-source"), markerRemote, "--ignore-existing"}, check); err != nil {
+		if _, err = e.run(ctx, a, []string{"copyto", filepath.Join(work, "access-marker-source"), markerRemote, "--ignore-existing"}, check); err != nil {
 			return err
 		}
 		if err = atomicFile(filepath.Join(work, "access-marker"), []byte(marker)); err != nil {
 			return err
 		}
 	}
-	raw, err := e.Runner(ctx, a, []string{"cat", markerRemote}, check)
+	raw, err := e.run(ctx, a, []string{"cat", markerRemote}, check)
 	if err != nil {
 		if recoveryKind(err) == "retry" || recoveryKind(err) == "authorization" {
 			return err

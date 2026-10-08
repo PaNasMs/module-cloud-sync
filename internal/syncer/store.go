@@ -97,6 +97,7 @@ type Engine struct {
 	Root, Runtime, Owner string
 	Broker               Broker
 	cloudMu              sync.Mutex
+	actionMu             sync.Mutex
 	tokens               map[string]lease
 	HTTP                 HTTPClient
 	Runner               Runner
@@ -195,7 +196,6 @@ ALTER TABLE tasks ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;`)
 		}
 	}
 	e := &Engine{DB: db, Root: root, Runtime: runtime, Owner: owner, Broker: broker, tokens: map[string]lease{}, HTTP: defaultHTTP(), Mount: mountIdentity, Local: localFolder}
-	e.Runner = e.runProcess
 	return e, nil
 }
 func (e *Engine) Close() error { return e.DB.Close() }

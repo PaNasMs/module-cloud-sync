@@ -44,7 +44,7 @@ func TestDropboxLive(t *testing.T) {
 	if _, err := e.ensure(ctx, a, true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.Runner(ctx, a, []string{"mkdir", "cloud:" + remote}, nil); err != nil {
+	if _, err := e.run(ctx, a, []string{"mkdir", "cloud:" + remote}, nil); err != nil {
 		t.Fatal(err)
 	}
 	task := addTask(t, e, "both")
@@ -55,14 +55,14 @@ func TestDropboxLive(t *testing.T) {
 	if err := e.runTask(ctx, task); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := e.Runner(ctx, a, []string{"cat", "cloud:" + remote + "/from-nas.txt"}, nil)
+	raw, err := e.run(ctx, a, []string{"cat", "cloud:" + remote + "/from-nas.txt"}, nil)
 	if err != nil || string(raw) != string(content) {
 		t.Fatal("upload content mismatch", err)
 	}
 	t.Log("PASS NAS to Dropbox", remote)
 	fromCloud := filepath.Join(t.TempDir(), "from-cloud.txt")
 	os.WriteFile(fromCloud, []byte("Dropbox download acceptance\n"), 0600)
-	if _, err = e.Runner(ctx, a, []string{"copyto", fromCloud, "cloud:" + remote + "/from-cloud.txt"}, nil); err != nil {
+	if _, err = e.run(ctx, a, []string{"copyto", fromCloud, "cloud:" + remote + "/from-cloud.txt"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	tasks, _ := e.tasks()
