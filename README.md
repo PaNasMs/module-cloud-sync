@@ -1,7 +1,7 @@
 # PaNasMs Cloud Sync
 
 Synchronize selected NAS, **Google Drive** and **Dropbox** folders with multiple
-accounts. Version **0.1.10**, module API 1, ARM64 Linux, core **0.2.8+**.
+accounts. Version **0.1.23**, module API 1, ARM64 and AMD64 Linux, core **0.2.15+**.
 
 ## Connect and synchronize
 
@@ -14,6 +14,10 @@ The setup wizard has three steps: select or connect an account; choose a Drive
 folder, a NAS folder and a direction on one screen; review and start. Adding a
 task from an existing account skips the first step. Connecting an account alone
 never starts a transfer. Each account can have several independent folder pairs.
+You can add accounts, browse cloud folders and create tasks while another task
+is synchronizing. New tasks wait for the current transfer; each user worker runs
+one synchronization at a time. Reconnecting or removing an existing account
+requires transfers to be paused first.
 
 The main page uses the NAS settings layout. Its sidebar lists sync tasks; the
 selected task shows both folders, direction, state, account actions and history
