@@ -6,9 +6,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -64,18 +64,30 @@ func (e *Engine) repositories(ctx context.Context, p map[string]any) (any, error
 	if err != nil || a.Provider != "github" {
 		return nil, problem("Invalid account")
 	}
-	repos := []repository{}
-	for page := 1; page <= 2; page++ {
-		var batch []repository
-		if err = e.github(ctx, a, fmt.Sprintf("user/repos?per_page=100&sort=full_name&page=%d", page), &batch); err != nil {
-			return nil, err
-		}
-		repos = append(repos, batch...)
-		if len(batch) < 100 {
-			break
-		}
+	query := strings.TrimSpace(str(p, "query"))
+	if len(query) > 128 {
+		return nil, problem("Select a GitHub repository")
 	}
-	return map[string]any{"repositories": repos}, nil
+	repos := []repository{}
+	if query == "" {
+		err = e.github(ctx, a, "user/repos?per_page=50&sort=full_name", &repos)
+		return map[string]any{"repositories": repos}, err
+	}
+	// GitHub search includes visible public repositories and authorized private ones.
+	// Qualify owner/name input so it also finds repositories outside the initial 50.
+	if owner, name, ok := strings.Cut(query, "/"); ok && regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*$`).MatchString(owner) {
+		query = "user:" + owner + " " + name
+	}
+	var result struct {
+		Items      []repository `json:"items"`
+		Total      int          `json:"total_count"`
+		Incomplete bool         `json:"incomplete_results"`
+	}
+	err = e.github(ctx, a, "search/repositories?per_page=50&q="+url.QueryEscape(query+" in:name fork:true"), &result)
+	if result.Items == nil {
+		result.Items = repos
+	}
+	return map[string]any{"repositories": result.Items, "more": result.Total > len(result.Items) || result.Incomplete}, err
 }
 
 func (e *Engine) createRepositoryTask(ctx context.Context, a Account, p map[string]any) (any, error) {
