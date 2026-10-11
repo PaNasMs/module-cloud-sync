@@ -137,7 +137,9 @@ function RepositoryPicker({ account, value, onChange }: { account: string; value
   const choose = (repo: Repository) => {
     onChange(repo.full_name);setText(repo.full_name);setOpen(false);setActive(-1);
   };
-  return <div ref={root} className="cloud-repository-picker" data-dialog-popup onBlur={(event) => {
+  return <div ref={root} className="cloud-repository-picker" data-dialog-popup onKeyDown={(event) => {
+    if (event.key === "Escape" && open) {event.preventDefault();event.stopPropagation();setOpen(false);root.current?.querySelector("input")?.focus();}
+  }} onBlur={(event) => {
     if (!event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false);
   }}>
     <label htmlFor={id}>{tr("repository")}</label>
