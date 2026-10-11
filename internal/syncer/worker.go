@@ -354,17 +354,16 @@ func (e *Engine) Serve(ctx context.Context, busy func(bool)) error {
 	return nil
 }
 
-// The shared cron schedule is 0 3,15 * * * in the NAS timezone. An overdue
-// batch runs once after downtime; new tasks already enter the queue as dirty.
+// Catch up only during the day; new and manual tasks bypass this scheduler.
 func (e *Engine) scheduleRepositories(now time.Time) error {
-	slot := time.Date(now.Year(), now.Month(), now.Day(), 15, 0, 0, 0, now.Location())
-	if now.Before(slot) {
-		slot = time.Date(now.Year(), now.Month(), now.Day(), 3, 0, 0, 0, now.Location())
+	if now.Hour() < 10 || now.Hour() >= 20 {
+		return nil
 	}
-	if now.Before(slot) {
-		yesterday := now.AddDate(0, 0, -1)
-		slot = time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 15, 0, 0, 0, now.Location())
+	hour := 10
+	if now.Hour() >= 18 {
+		hour = 18
 	}
+	slot := time.Date(now.Year(), now.Month(), now.Day(), hour, 0, 0, 0, now.Location())
 	_, err := e.DB.Exec("UPDATE tasks SET dirty=1 WHERE direction='github' AND paused=0 AND status='idle' AND initialized=1 AND last_sync<?", slot.Unix())
 	return err
 }

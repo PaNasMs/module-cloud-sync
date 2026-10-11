@@ -259,7 +259,7 @@ func TestRepositorySharedScheduleAndRestart(t *testing.T) {
 	for _, day := range []string{"2026-10-11", "2026-10-25", "2026-03-29"} {
 		t.Run(day, func(t *testing.T) {
 			e := fixture(t)
-			morning, err := time.ParseInLocation("2006-01-02 15:04", day+" 03:00", loc)
+			morning, err := time.ParseInLocation("2006-01-02 15:04", day+" 10:00", loc)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -302,22 +302,36 @@ func TestRepositorySharedScheduleAndRestart(t *testing.T) {
 			check(b.ID, 0)
 			fresh := addTask(t, e, "github")
 			check(fresh.ID, 1)
-			afternoon := time.Date(morning.Year(), morning.Month(), morning.Day(), 15, 0, 0, 0, loc)
+			afternoon := time.Date(morning.Year(), morning.Month(), morning.Day(), 18, 0, 0, 0, loc)
 			if err = e.scheduleRepositories(afternoon.Add(-time.Second)); err != nil {
 				t.Fatal(err)
 			}
 			check(a.ID, 0)
-			if err = e.scheduleRepositories(afternoon.Add(2 * time.Hour)); err != nil {
+			if err = e.scheduleRepositories(afternoon.Add(time.Hour)); err != nil {
 				t.Fatal(err)
 			}
 			check(a.ID, 1)
 			check(b.ID, 1)
 			check(paused.ID, 0)
-			e.DB.Exec("UPDATE tasks SET dirty=0,last_sync=? WHERE id IN (?,?)", afternoon.Add(2*time.Hour).Unix(), a.ID, b.ID)
+			e.DB.Exec("UPDATE tasks SET dirty=0,last_sync=? WHERE id IN (?,?)", afternoon.Add(time.Hour).Unix(), a.ID, b.ID)
 			if err = e.scheduleRepositories(afternoon.Add(3 * time.Hour)); err != nil {
 				t.Fatal(err)
 			}
 			check(a.ID, 0)
+			e.DB.Exec("UPDATE tasks SET dirty=0,last_sync=? WHERE id IN (?,?)", morning.Unix(), a.ID, b.ID)
+			for _, at := range []time.Time{afternoon.Add(2 * time.Hour), afternoon.Add(5 * time.Hour), morning.AddDate(0, 0, 1).Add(-time.Second)} {
+				if err = e.scheduleRepositories(at); err != nil {
+					t.Fatal(err)
+				}
+				check(a.ID, 0)
+				check(b.ID, 0)
+			}
+			if err = e.scheduleRepositories(morning.AddDate(0, 0, 1)); err != nil {
+				t.Fatal(err)
+			}
+			check(a.ID, 1)
+			check(b.ID, 1)
+			check(paused.ID, 0)
 		})
 	}
 }
