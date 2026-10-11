@@ -51,7 +51,6 @@ type Account = {
   error: string;
 };
 type Task = {
- interval_minutes?: number;
  branch?: string;
   id: string;
   account: string;
@@ -274,22 +273,9 @@ export function CloudSyncPage() {
   const state = query.data ?? empty;
   const [accountID, setAccountID] = useQueryValue("account");
   const [selectedID, setSelectedID] = useQueryValue("sync");
-  const selectedTask = selectedID.startsWith("account:")
-    ? undefined
-    : (state.tasks.find((t) => t.id === selectedID) ??
-      state.tasks.find((t) => t.account === accountID) ??
-      state.tasks[0]);
-  const account =
-    state.accounts.find(
-      (a) =>
-        a.id ===
-        (selectedTask?.account ||
-          selectedID.replace(/^account:/, "") ||
-          accountID),
-    ) ?? state.accounts[0];
-  const unconfigured = state.accounts.filter(
-    (a) => !state.tasks.some((t) => t.account === a.id),
-  );
+  const selectedTask = state.tasks.find((t) => t.id === selectedID) ??
+      state.tasks.find((t) => t.account === accountID) ?? state.tasks[0];
+  const account = state.accounts.find((a) => a.id === selectedTask?.account);
   const [dialog, setDialog] = useState<"account" | "task" | null>(null);
   const [reconnect, setReconnect] = useState<Account | null>(null);
   const [provider, setProvider] = useState<"drive" | "dropbox" | "github">("drive");
@@ -391,19 +377,15 @@ export function CloudSyncPage() {
     setLocal("");
     setRemote("");
     setRemoteChosen(false);
-setRepoPage(1); setRepoFilter("");
     setDirection("download");
     setError("");
     setDialog("account");
   }
   const chosenAccount = state.accounts.find((a) => a.id === taskAccount);
   const isGitHub = chosenAccount?.provider === "github";
-  const [repoPage, setRepoPage] = useState(1);
-  const [repoFilter, setRepoFilter] = useState("");
-  const [interval, setInterval] = useState("15");
   const repositories = useQuery({
-    queryKey: ["cloud-sync-repositories", taskAccount, repoPage],
-    queryFn: () => api<{ repositories: { id: number; full_name: string; private: boolean }[]; more: boolean }>({ action: "repositories", account: taskAccount, page: String(repoPage) }),
+    queryKey: ["cloud-sync-repositories", taskAccount],
+    queryFn: () => api<{ repositories: { id: number; full_name: string; private: boolean }[] }>({ action: "repositories", account: taskAccount }),
     enabled: dialog !== null && step === 2 && isGitHub,
   });
   async function browse(kind: "local" | "remote", path: string) {
@@ -454,7 +436,6 @@ setRepoPage(1); setRepoFilter("");
     setStep(2);
     setReconnect(null);
     setRemoteChosen(false);
-setRepoPage(1); setRepoFilter("");
     setName("");
     setLocal("");
     setRemote("");
@@ -507,12 +488,6 @@ setRepoPage(1); setRepoFilter("");
                       ? ("warn" as const)
                       : ("ok" as const),
             })),
-            ...unconfigured.map((a) => ({
-              id: "account:" + a.id,
-              title: a.label,
-              group: tr("withoutTasks"),
-              icon: providerIcon(a.provider),
-            })),
           ]}
           footer={
             <Button onClick={() => openAccount(null)}>
@@ -521,7 +496,7 @@ setRepoPage(1); setRepoFilter("");
             </Button>
           }
         />
-        {!state.accounts.length && <Notice>{tr("noTasks")}</Notice>}
+        {!state.tasks.length && <Notice>{tr("noTasks")}</Notice>}
         <div className="settings-content">
           <div className="general-settings">
             {account ? (
@@ -606,7 +581,7 @@ setRepoPage(1); setRepoFilter("");
                     <>
                       {selectedTask.direction === "github" && <>
                         <p>{tr("github")}</p>
-                        <dl className="cloud-review"><dt>{tr("repositoryBranch")}</dt><dd>{selectedTask.branch || "—"}</dd><dt>{tr("repositoryInterval")}</dt><dd>{selectedTask.interval_minutes}</dd></dl>
+                        <dl className="cloud-review"><dt>{tr("repositoryBranch")}</dt><dd>{selectedTask.branch || "—"}</dd><dt>{tr("repositorySchedule")}</dt><dd>{tr("repositoryScheduleHelp")}</dd></dl>
                         <p className="muted">{tr("repositoryHelp")}</p>
                       </>}
                       <div className="cloud-paths">
@@ -941,7 +916,6 @@ setRepoPage(1); setRepoFilter("");
                       local,
                       remote,
                       direction: isGitHub ? "github" : direction,
-                      interval,
                     });
                   else if (taskAccount && !newAccount) setStep(2);
                 }}
@@ -1051,17 +1025,15 @@ setRepoPage(1); setRepoFilter("");
                       />
                     </label>
                     {isGitHub && <>
-                      <label>{tr("repositorySearch")}<input value={repoFilter} onChange={event => setRepoFilter(event.target.value)} /></label>
                       {repositories.isPending && <p role="status">{tr("repositoryLoading")}</p>}
                       {repositories.error && <Notice error>{repositories.error.message}<Button type="button" onClick={() => void repositories.refetch()}>{tr("retry")}</Button></Notice>}
                       <label>{tr("repository")}<select value={remote} onChange={event => { setRemote(event.target.value); setRemoteChosen(!!event.target.value); }}>
                         <option value="">{tr("chooseRepository")}</option>
                         {remote && !repositories.data?.repositories.some(r => r.full_name === remote) && <option value={remote}>{remote}</option>}
-                        {repositories.data?.repositories.filter(r => r.full_name === remote || r.full_name.toLowerCase().includes(repoFilter.toLowerCase())).map(r => <option key={r.id} value={r.full_name}>{r.full_name}{r.private ? ` · ${tr("privateRepository")}` : ""}</option>)}
+                        {repositories.data?.repositories.map(r => <option key={r.id} value={r.full_name}>{r.full_name}{r.private ? ` · ${tr("privateRepository")}` : ""}</option>)}
                       </select></label>
                       {repositories.data && !repositories.data.repositories.length && <p>{tr("noRepositories")}</p>}
-                      <div className="actions"><Button type="button" disabled={repoPage === 1 || repositories.isFetching} onClick={() => setRepoPage(repoPage - 1)}>{tr("back")}</Button><span>{repoPage}</span><Button type="button" disabled={!repositories.data?.more || repositories.isFetching} onClick={() => setRepoPage(repoPage + 1)}>{tr("next")}</Button></div>
-                      <label>{tr("repositoryInterval")}<select value={interval} onChange={event => setInterval(event.target.value)}>{[5,15,30,60,360,1440].map(v => <option key={v} value={v}>{v}</option>)}</select></label>
+                      <p className="muted">{tr("repositoryScheduleHelp")}</p>
                       <p className="muted">{tr("repositoryHelp")}</p>
                     </>}
                     <div className="cloud-folder-pair">

@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -65,15 +64,18 @@ func (e *Engine) repositories(ctx context.Context, p map[string]any) (any, error
 	if err != nil || a.Provider != "github" {
 		return nil, problem("Invalid account")
 	}
-	page, _ := strconv.Atoi(str(p, "page"))
-	if page < 1 || page > 1000 {
-		page = 1
-	}
 	repos := []repository{}
-	if err = e.github(ctx, a, fmt.Sprintf("user/repos?per_page=100&sort=full_name&page=%d", page), &repos); err != nil {
-		return nil, err
+	for page := 1; page <= 2; page++ {
+		var batch []repository
+		if err = e.github(ctx, a, fmt.Sprintf("user/repos?per_page=100&sort=full_name&page=%d", page), &batch); err != nil {
+			return nil, err
+		}
+		repos = append(repos, batch...)
+		if len(batch) < 100 {
+			break
+		}
 	}
-	return map[string]any{"repositories": repos, "more": len(repos) == 100}, nil
+	return map[string]any{"repositories": repos}, nil
 }
 
 func (e *Engine) createRepositoryTask(ctx context.Context, a Account, p map[string]any) (any, error) {
@@ -118,13 +120,6 @@ func (e *Engine) createRepositoryTask(ctx context.Context, a Account, p map[stri
 	if repo.ID <= 0 || !strings.EqualFold(repo.Name, remote) {
 		return nil, problem("Select a GitHub repository")
 	}
-	interval, _ := strconv.Atoi(str(p, "interval"))
-	if interval == 0 {
-		interval = 15
-	}
-	if interval < 5 || interval > 1440 {
-		return nil, problem("Choose a check interval between 5 and 1440 minutes")
-	}
 	name := strings.TrimSpace(str(p, "name"))
 	if name == "" {
 		name = repo.Name
@@ -140,7 +135,7 @@ func (e *Engine) createRepositoryTask(ctx context.Context, a Account, p map[stri
 	defer tx.Rollback()
 	_, err = tx.Exec("INSERT INTO tasks(id,account,name,local,remote,direction,mount) VALUES(?,?,?,?,?,'github',?)", id, a.ID, name, local, repo.Name, stableMount(mount))
 	if err == nil {
-		_, err = tx.Exec("INSERT INTO git_tasks(task,repository_id,interval_minutes) VALUES(?,?,?)", id, repo.ID, interval)
+		_, err = tx.Exec("INSERT INTO git_tasks(task,repository_id) VALUES(?,?)", id, repo.ID)
 	}
 	if err != nil {
 		return nil, err
@@ -212,8 +207,7 @@ func (e *Engine) runRepositoryTask(parent context.Context, t Task) (result error
 		return err
 	}
 	var expected int64
-	var interval int
-	if err = e.DB.QueryRow("SELECT repository_id,interval_minutes FROM git_tasks WHERE task=?", t.ID).Scan(&expected, &interval); err != nil {
+	if err = e.DB.QueryRow("SELECT repository_id FROM git_tasks WHERE task=?", t.ID).Scan(&expected); err != nil {
 		return err
 	}
 	var repo repository
@@ -278,10 +272,6 @@ func (e *Engine) runRepositoryTask(parent context.Context, t Task) (result error
 				return err
 			}
 		}
-	}
-	_, err = e.DB.Exec("UPDATE git_tasks SET next_check=? WHERE task=?", time.Now().Add(time.Duration(interval)*time.Minute).Unix(), t.ID)
-	if err != nil {
-		return err
 	}
 	_, err = e.DB.Exec("UPDATE tasks SET status='idle',initialized=1,snapshot=?,last_sync=?,error='',recovery='',retry_at=0,retry_count=0 WHERE id=?", snapshot, time.Now().Unix(), t.ID)
 	if err == nil && (t.Initialized == 0 || snapshot != t.Snapshot) {

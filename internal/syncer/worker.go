@@ -22,7 +22,7 @@ func (e *Engine) initialize() error {
 	if _, err := e.DB.Exec("UPDATE tasks SET status='idle',dirty=1 WHERE status='running' AND paused=1 AND recovery=''"); err != nil {
 		return err
 	}
-	_, err := e.DB.Exec("UPDATE tasks SET dirty=1 WHERE paused=0 AND status!='error'")
+	_, err := e.DB.Exec("UPDATE tasks SET dirty=1 WHERE paused=0 AND status!='error' AND (direction!='github' OR initialized=0)")
 	return err
 }
 func (e *Engine) pauseError(id string, err error) {
@@ -231,7 +231,7 @@ func (e *Engine) cycle(ctx context.Context, next map[string]time.Time, failures 
 		failures[a.ID] = 0
 		next[a.ID] = time.Now().Add(time.Minute)
 	}
-	_, _ = e.DB.Exec("UPDATE tasks SET dirty=1 WHERE direction='github' AND paused=0 AND status='idle' AND id IN (SELECT task FROM git_tasks WHERE next_check<=?)", time.Now().Unix())
+	_ = e.scheduleRepositories(time.Now())
 	tasks, err = e.tasks()
 	if err != nil {
 		return
@@ -352,4 +352,19 @@ func (e *Engine) Serve(ctx context.Context, busy func(bool)) error {
 	cancel()
 	wg.Wait()
 	return nil
+}
+
+// The shared cron schedule is 0 3,15 * * * in the NAS timezone. An overdue
+// batch runs once after downtime; new tasks already enter the queue as dirty.
+func (e *Engine) scheduleRepositories(now time.Time) error {
+	slot := time.Date(now.Year(), now.Month(), now.Day(), 15, 0, 0, 0, now.Location())
+	if now.Before(slot) {
+		slot = time.Date(now.Year(), now.Month(), now.Day(), 3, 0, 0, 0, now.Location())
+	}
+	if now.Before(slot) {
+		yesterday := now.AddDate(0, 0, -1)
+		slot = time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 15, 0, 0, 0, now.Location())
+	}
+	_, err := e.DB.Exec("UPDATE tasks SET dirty=1 WHERE direction='github' AND paused=0 AND status='idle' AND initialized=1 AND last_sync<?", slot.Unix())
+	return err
 }

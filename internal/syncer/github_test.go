@@ -1,9 +1,12 @@
 package syncer
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"github.com/PaNasMs/module-sdk/external"
 	"io"
 	"net/http"
@@ -184,5 +187,107 @@ func TestRepositoryPauseInterruptsRemoteProbe(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("pause did not cancel remote probe")
+	}
+}
+
+func TestRepositoryListLoadsTwoPages(t *testing.T) {
+	e := fixture(t)
+	e.Broker = func(context.Context, string) (external.Access, error) {
+		return external.Access{AccessToken: "test", TokenType: "Bearer", Scope: "repo", ExpiresAt: time.Now().Add(time.Hour)}, nil
+	}
+	if _, err := e.DB.Exec("UPDATE accounts SET provider='github',grant_id=?,owner=? WHERE id=?", newID(), e.Owner, accountID); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	e.HTTP = doFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		if r.URL.Path != "/user/repos" || r.URL.Query().Get("page") != fmt.Sprint(calls) || r.URL.Query().Get("per_page") != "100" {
+			t.Fatalf("unexpected request: %s", r.URL)
+		}
+		batch := make([]repository, 100)
+		for i := range batch {
+			batch[i] = repository{ID: int64((calls-1)*100 + i + 1), Name: fmt.Sprintf("org/repo-%d-%d", calls, i)}
+		}
+		data, _ := json.Marshal(batch)
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(data))}, nil
+	})
+	result, err := e.repositories(context.Background(), map[string]any{"account": accountID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repos := result.(map[string]any)["repositories"].([]repository)
+	if calls != 2 || len(repos) != 200 || repos[199].ID != 200 {
+		t.Fatalf("calls=%d repos=%d", calls, len(repos))
+	}
+}
+
+func TestRepositorySharedScheduleAndRestart(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Warsaw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, day := range []string{"2026-10-11", "2026-10-25", "2026-03-29"} {
+		t.Run(day, func(t *testing.T) {
+			e := fixture(t)
+			morning, err := time.ParseInLocation("2006-01-02 15:04", day+" 03:00", loc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a := addTask(t, e, "github")
+			b := addTask(t, e, "github")
+			paused := addTask(t, e, "github")
+			cloud := addTask(t, e, "download")
+			for _, id := range []string{a.ID, b.ID, paused.ID, cloud.ID} {
+				if _, err = e.DB.Exec("UPDATE tasks SET initialized=1,status='idle',dirty=0,last_sync=? WHERE id=?", morning.Add(-time.Hour).Unix(), id); err != nil {
+					t.Fatal(err)
+				}
+			}
+			e.DB.Exec("UPDATE tasks SET paused=1 WHERE id=?", paused.ID)
+			check := func(id string, want int) {
+				t.Helper()
+				var got int
+				if err := e.DB.QueryRow("SELECT dirty FROM tasks WHERE id=?", id).Scan(&got); err != nil {
+					t.Fatal(err)
+				}
+				if got != want {
+					t.Fatalf("dirty=%d want=%d", got, want)
+				}
+			}
+			if err = e.scheduleRepositories(morning.Add(-time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			check(a.ID, 0)
+			if err = e.scheduleRepositories(morning); err != nil {
+				t.Fatal(err)
+			}
+			check(a.ID, 1)
+			check(b.ID, 1)
+			check(paused.ID, 0)
+			check(cloud.ID, 0)
+			e.DB.Exec("UPDATE tasks SET dirty=0,last_sync=? WHERE id IN (?,?)", morning.Unix(), a.ID, b.ID)
+			if err = e.initialize(); err != nil {
+				t.Fatal(err)
+			}
+			check(a.ID, 0)
+			check(b.ID, 0)
+			fresh := addTask(t, e, "github")
+			check(fresh.ID, 1)
+			afternoon := time.Date(morning.Year(), morning.Month(), morning.Day(), 15, 0, 0, 0, loc)
+			if err = e.scheduleRepositories(afternoon.Add(-time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			check(a.ID, 0)
+			if err = e.scheduleRepositories(afternoon.Add(2 * time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			check(a.ID, 1)
+			check(b.ID, 1)
+			check(paused.ID, 0)
+			e.DB.Exec("UPDATE tasks SET dirty=0,last_sync=? WHERE id IN (?,?)", afternoon.Add(2*time.Hour).Unix(), a.ID, b.ID)
+			if err = e.scheduleRepositories(afternoon.Add(3 * time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			check(a.ID, 0)
+		})
 	}
 }

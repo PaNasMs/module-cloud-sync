@@ -38,7 +38,9 @@ configured separately in Google Cloud.
 
 1. Configure the existing [GitHub OAuth client](https://panasms.github.io/docs/setup/github/) and link your GitHub account in your profile.
 2. Add a GitHub connection in Cloud Sync and approve the `repo` permission. GitHub OAuth grants **read and write** repository access; Cloud Sync only reads and never pushes. An organization may require its own approval.
-3. Select one repository, an empty local folder and a check interval, then start the task. Use separate tasks for separate repositories.
+3. Select one repository, an empty local folder, then start the task. Use separate tasks for separate repositories. The selector loads up to 200 accessible repositories.
+
+New tasks run immediately. All repository tasks then use the shared cron schedule `0 3,15 * * *` (03:00 and 15:00 in the NAS timezone), evaluated by the Go worker without a separate cron daemon. Tasks execute sequentially; an overdue batch runs once after downtime. Paused tasks remain paused.
 
 The result is a normal, non-shallow Git repository with `.git`. All advertised
 branches and tags are fetched; the initial working tree uses the default branch.

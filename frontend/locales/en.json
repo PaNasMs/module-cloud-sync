@@ -1,6 +1,6 @@
 {
   "title": "Cloud Sync",
-  "subtitle": "Google Drive · Dropbox · selected folders",
+  "subtitle": "Google Drive · Dropbox · GitHub",
   "addAccount": "Add connection",
   "noAccounts": "No connected accounts",
   "reconnect": "Reconnect account",
@@ -110,7 +110,6 @@
   "folderServer2": "Invalid folder name",
   "folderServer3": "Cannot create folder. Check permissions and whether the name already exists.",
   "noHistory": "No sync events yet.",
-  "withoutTasks": "Connections without sync tasks",
   "status": "Status",
   "lastSync": "Last successful sync",
   "notYet": "Not yet synchronized",
@@ -135,11 +134,9 @@
   "interruptedRetry": "Transfer interrupted; retrying automatically.",
   "repository": "Repository",
   "chooseRepository": "Choose a repository",
-  "repositorySearch": "Filter this page of repositories",
   "repositoryLoading": "Loading repositories…",
   "privateRepository": "Private",
   "noRepositories": "No accessible repositories. Check GitHub organization approval.",
-  "repositoryInterval": "Check interval (minutes)",
   "repositoryHelp": "Download all branches and tags; initially show the default branch. Updates never overwrite local edits or divergent history. Previous refs are retained in .git. Git LFS content and submodule repositories are not downloaded; only their pointers are kept.",
   "repositoryEmptyFolder": "Choose an empty folder. With no remote changes, periodic checks do not read this folder.",
   "github": "GitHub → NAS (all branches and tags)",
@@ -161,5 +158,7 @@
   "gitServer13": "Local repository changes need attention. Commit or move them, then resume synchronization.",
   "gitServer14": "The repository has a detached HEAD. Select a branch and resume synchronization.",
   "gitServer15": "The checked-out branch no longer exists on GitHub. Local files and history were preserved.",
-  "gitServer16": "The local branch cannot fast-forward. Local files and previous remote history were preserved."
+  "gitServer16": "The local branch cannot fast-forward. Local files and previous remote history were preserved.",
+  "repositorySchedule": "Schedule",
+  "repositoryScheduleHelp": "Immediately after creation, then every day at 03:00 and 15:00 (NAS time)."
 }
