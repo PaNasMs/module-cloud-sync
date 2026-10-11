@@ -21,7 +21,7 @@ func recoveryKind(err error) string {
 		return "history"
 	case "Account authorization expired or access was denied. Reconnect the account.":
 		return "authorization"
-	case "Cloud is unreachable; retry later.", "Cloud access service is unavailable; retrying later.":
+	case "Git operation failed. Check connectivity, repository access, local changes and free space, then retry.", "GitHub denied access or rate-limited this request. Check repository access and try again later.", "Cloud is unreachable; retry later.", "Cloud access service is unavailable; retrying later.":
 		return "retry"
 	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, errRotated) {

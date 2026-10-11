@@ -6,6 +6,7 @@ import {
   mdiCloudSyncOutline,
   mdiGoogleDrive,
   mdiDropbox,
+  mdiGithub,
   mdiArrowUp,
   mdiChevronRight,
   mdiChevronDown,
@@ -50,6 +51,8 @@ type Account = {
   error: string;
 };
 type Task = {
+ interval_minutes?: number;
+ branch?: string;
   id: string;
   account: string;
   name: string;
@@ -87,9 +90,9 @@ type State = {
 type Connection = { id: string; provider: string; email: string; name: string };
 const empty: State = { accounts: [], tasks: [], history: [] };
 const providerIcon = (id: string) =>
-  id === "drive" ? mdiGoogleDrive : id === "dropbox" ? mdiDropbox : mdiCloudSyncOutline;
+  id === "github" ? mdiGithub : id === "drive" ? mdiGoogleDrive : id === "dropbox" ? mdiDropbox : mdiCloudSyncOutline;
 const providerLabel = (id?: string) =>
-  id === "drive" ? "Google Drive" : id === "dropbox" ? "Dropbox" : tr("title");
+  id === "github" ? "GitHub" : id === "drive" ? "Google Drive" : id === "dropbox" ? "Dropbox" : tr("title");
 async function api<T>(body?: unknown): Promise<T> {
   const result = await request<T & { error?: string }>(
     "module-api/cloud-sync/" + (body ? "action" : "state"),
@@ -289,7 +292,7 @@ export function CloudSyncPage() {
   );
   const [dialog, setDialog] = useState<"account" | "task" | null>(null);
   const [reconnect, setReconnect] = useState<Account | null>(null);
-  const [provider, setProvider] = useState<"drive" | "dropbox">("drive");
+  const [provider, setProvider] = useState<"drive" | "dropbox" | "github">("drive");
   const [label, setLabel] = useState("");
   const [step, setStep] = useState(1);
   const [taskAccount, setTaskAccount] = useState("");
@@ -317,7 +320,7 @@ export function CloudSyncPage() {
     enabled: dialog !== null && step === 1,
   });
   const linkedConnections =
-    connectionsQuery.data?.filter((c) => c.provider === (provider === "drive" ? "google" : "dropbox")) ?? [];
+    connectionsQuery.data?.filter((c) => c.provider === (provider === "drive" ? "google" : provider)) ?? [];
   const selectedConnectionId = connectionId || linkedConnections[0]?.id || "";
   async function perform(body: Record<string, unknown>) {
     setBusy(true);
@@ -357,7 +360,7 @@ export function CloudSyncPage() {
         label:
           label.trim() ||
           linkedConnections.find((c) => c.id === selectedConnectionId)?.email ||
-          (provider === "drive" ? "Google Drive" : "Dropbox"),
+          (provider === "github" ? "GitHub" : provider === "drive" ? "Google Drive" : "Dropbox"),
         grantId,
       });
       const refreshed = await query.refetch();
@@ -378,7 +381,7 @@ export function CloudSyncPage() {
   }
   function openAccount(current: Account | null) {
     setReconnect(current);
-    setProvider(current?.provider === "dropbox" ? "dropbox" : "drive");
+    setProvider(current?.provider === "github" ? "github" : current?.provider === "dropbox" ? "dropbox" : "drive");
     setLabel(current?.label ?? "");
     setConnectionId("");
     setTaskAccount("");
@@ -388,11 +391,21 @@ export function CloudSyncPage() {
     setLocal("");
     setRemote("");
     setRemoteChosen(false);
+setRepoPage(1); setRepoFilter("");
     setDirection("download");
     setError("");
     setDialog("account");
   }
   const chosenAccount = state.accounts.find((a) => a.id === taskAccount);
+  const isGitHub = chosenAccount?.provider === "github";
+  const [repoPage, setRepoPage] = useState(1);
+  const [repoFilter, setRepoFilter] = useState("");
+  const [interval, setInterval] = useState("15");
+  const repositories = useQuery({
+    queryKey: ["cloud-sync-repositories", taskAccount, repoPage],
+    queryFn: () => api<{ repositories: { id: number; full_name: string; private: boolean }[]; more: boolean }>({ action: "repositories", account: taskAccount, page: String(repoPage) }),
+    enabled: dialog !== null && step === 2 && isGitHub,
+  });
   async function browse(kind: "local" | "remote", path: string) {
     setBusy(true);
     setError("");
@@ -441,6 +454,7 @@ export function CloudSyncPage() {
     setStep(2);
     setReconnect(null);
     setRemoteChosen(false);
+setRepoPage(1); setRepoFilter("");
     setName("");
     setLocal("");
     setRemote("");
@@ -516,7 +530,7 @@ export function CloudSyncPage() {
                   <div className="page-heading">
                     <div>
                       <h2>{selectedTask?.name || account.label}</h2>
-                      <p className="muted">{account.provider === "drive" ? "Google Drive" : "Dropbox"} · {account.label}</p>
+                      <p className="muted">{account.provider === "github" ? "GitHub" : provider === "drive" ? "Google Drive" : "Dropbox"} · {account.label}</p>
                     </div>
                     <div className="actions">
                       {selectedTask && (
@@ -590,6 +604,11 @@ export function CloudSyncPage() {
                   </div>
                   {selectedTask ? (
                     <>
+                      {selectedTask.direction === "github" && <>
+                        <p>{tr("github")}</p>
+                        <dl className="cloud-review"><dt>{tr("repositoryBranch")}</dt><dd>{selectedTask.branch || "—"}</dd><dt>{tr("repositoryInterval")}</dt><dd>{selectedTask.interval_minutes}</dd></dl>
+                        <p className="muted">{tr("repositoryHelp")}</p>
+                      </>}
                       <div className="cloud-paths">
                         <div>
                           <span className="field-label">{tr("local")}</span>
@@ -608,7 +627,7 @@ export function CloudSyncPage() {
                           <span className="field-label">{tr("remote")}</span>
                           <p>
                             {selectedTask.remote
-                              ? "/" + selectedTask.remote
+                              ? (selectedTask.direction === "github" ? "" : "/") + selectedTask.remote
                               : tr("cloudRoot")}
                           </p>
                         </div>
@@ -921,7 +940,8 @@ export function CloudSyncPage() {
                       name,
                       local,
                       remote,
-                      direction,
+                      direction: isGitHub ? "github" : direction,
+                      interval,
                     });
                   else if (taskAccount && !newAccount) setStep(2);
                 }}
@@ -946,7 +966,7 @@ export function CloudSyncPage() {
                             {tr("chooseAccount")}
                           </option>
                           {state.accounts
-                            .filter((a) => a.provider === "drive" || a.provider === "dropbox")
+                            .filter((a) => a.provider === "drive" || a.provider === "dropbox" || a.provider === "github")
                             .map((a) => (
                               <option key={a.id} value={a.id}>
                                 {a.label}
@@ -961,10 +981,11 @@ export function CloudSyncPage() {
                         <label>
                           {tr("provider")}
                           <select value={provider} disabled={!!reconnect} onChange={(event) => {
-                            setProvider(event.target.value as "drive" | "dropbox"); setConnectionId("");
+                            setProvider(event.target.value as "drive" | "dropbox" | "github"); setConnectionId("");
                           }}>
                             <option value="drive">Google Drive</option>
                             <option value="dropbox">Dropbox</option>
+<option value="github">GitHub</option>
                           </select>
                         </label>
                         <label>
@@ -1001,11 +1022,11 @@ export function CloudSyncPage() {
                         {selectedConnectionId && (
                           <ProviderConnect
                             key={provider + selectedConnectionId}
-                            providerId={provider === "drive" ? "google" : "dropbox"}
+                            providerId={provider === "drive" ? "google" : provider}
                             grant={{
                               connectionId: selectedConnectionId,
                               consumer: "cloud-sync",
-                              capability: provider === "drive" ? "google-drive" : "dropbox-files",
+                              capability: provider === "github" ? "github-repositories" : provider === "drive" ? "google-drive" : "dropbox-files",
                             }}
                             onComplete={completeGrant}
                           />
@@ -1029,8 +1050,22 @@ export function CloudSyncPage() {
                         placeholder={tr("optionalName")}
                       />
                     </label>
+                    {isGitHub && <>
+                      <label>{tr("repositorySearch")}<input value={repoFilter} onChange={event => setRepoFilter(event.target.value)} /></label>
+                      {repositories.isPending && <p role="status">{tr("repositoryLoading")}</p>}
+                      {repositories.error && <Notice error>{repositories.error.message}<Button type="button" onClick={() => void repositories.refetch()}>{tr("retry")}</Button></Notice>}
+                      <label>{tr("repository")}<select value={remote} onChange={event => { setRemote(event.target.value); setRemoteChosen(!!event.target.value); }}>
+                        <option value="">{tr("chooseRepository")}</option>
+                        {remote && !repositories.data?.repositories.some(r => r.full_name === remote) && <option value={remote}>{remote}</option>}
+                        {repositories.data?.repositories.filter(r => r.full_name === remote || r.full_name.toLowerCase().includes(repoFilter.toLowerCase())).map(r => <option key={r.id} value={r.full_name}>{r.full_name}{r.private ? ` · ${tr("privateRepository")}` : ""}</option>)}
+                      </select></label>
+                      {repositories.data && !repositories.data.repositories.length && <p>{tr("noRepositories")}</p>}
+                      <div className="actions"><Button type="button" disabled={repoPage === 1 || repositories.isFetching} onClick={() => setRepoPage(repoPage - 1)}>{tr("back")}</Button><span>{repoPage}</span><Button type="button" disabled={!repositories.data?.more || repositories.isFetching} onClick={() => setRepoPage(repoPage + 1)}>{tr("next")}</Button></div>
+                      <label>{tr("repositoryInterval")}<select value={interval} onChange={event => setInterval(event.target.value)}>{[5,15,30,60,360,1440].map(v => <option key={v} value={v}>{v}</option>)}</select></label>
+                      <p className="muted">{tr("repositoryHelp")}</p>
+                    </>}
                     <div className="cloud-folder-pair">
-                      {(["remote", "local"] as const).map((kind) => (
+                      {(isGitHub ? ["local"] as const : ["remote", "local"] as const).map((kind) => (
                         <div className="folder-field" key={kind}>
                           <span className="field-label">{tr(kind)}</span>
                           <button
@@ -1061,7 +1096,7 @@ export function CloudSyncPage() {
                         </div>
                       ))}
                     </div>
-                    <label>
+                    {!isGitHub && <label>
                       {tr("direction")}
                       <select
                         value={direction}
@@ -1071,8 +1106,8 @@ export function CloudSyncPage() {
                         <option value="upload">{tr("upload")}</option>
                         <option value="both">{tr("both")}</option>
                       </select>
-                    </label>
-                    <p className="muted">{tr("taskHelp")}</p>
+                    </label>}
+                    <p className="muted">{tr(isGitHub ? "repositoryEmptyFolder" : "taskHelp")}</p>
                   </>
                 )}
                 {step === 3 && (
@@ -1085,10 +1120,10 @@ export function CloudSyncPage() {
                       <dt>{tr("local")}</dt>
                       <dd>{local}</dd>
                       <dt>{tr("direction")}</dt>
-                      <dd>{tr(direction)}</dd>
+                      <dd>{tr(isGitHub ? "github" : direction)}</dd>
                     </dl>
                     <Notice>
-                      {tr(direction === "both" ? "bothHelp" : "copyHelp")}
+                      {tr(isGitHub ? "repositoryHelp" : direction === "both" ? "bothHelp" : "copyHelp")}
                     </Notice>
                   </>
                 )}

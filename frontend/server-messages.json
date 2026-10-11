@@ -190,5 +190,73 @@
   {
     "key": "interruptedRetry",
     "en": "Transfer interrupted; retrying automatically."
+  },
+  {
+    "key": "gitServer0",
+    "en": "GitHub denied access or rate-limited this request. Check repository access and try again later."
+  },
+  {
+    "key": "gitServer1",
+    "en": "GitHub repository is unavailable. The local copy has been preserved."
+  },
+  {
+    "key": "gitServer2",
+    "en": "Select a GitHub repository"
+  },
+  {
+    "key": "gitServer3",
+    "en": "Choose an empty local folder for the repository"
+  },
+  {
+    "key": "gitServer4",
+    "en": "This repository already has a synchronization task"
+  },
+  {
+    "key": "gitServer5",
+    "en": "Choose a check interval between 5 and 1440 minutes"
+  },
+  {
+    "key": "gitServer6",
+    "en": "Repository task created"
+  },
+  {
+    "key": "gitServer7",
+    "en": "Git operation failed. Check connectivity, repository access, local changes and free space, then retry."
+  },
+  {
+    "key": "gitServer8",
+    "en": "Repository reference list is too large"
+  },
+  {
+    "key": "gitServer9",
+    "en": "GitHub repository identity changed. The local copy has been preserved."
+  },
+  {
+    "key": "gitServer10",
+    "en": "Repository synchronized; all remote branches and tags fetched"
+  },
+  {
+    "key": "gitServer11",
+    "en": "The repository metadata is not a local directory"
+  },
+  {
+    "key": "gitServer12",
+    "en": "This folder is not the repository created by this task"
+  },
+  {
+    "key": "gitServer13",
+    "en": "Local repository changes need attention. Commit or move them, then resume synchronization."
+  },
+  {
+    "key": "gitServer14",
+    "en": "The repository has a detached HEAD. Select a branch and resume synchronization."
+  },
+  {
+    "key": "gitServer15",
+    "en": "The checked-out branch no longer exists on GitHub. Local files and history were preserved."
+  },
+  {
+    "key": "gitServer16",
+    "en": "The local branch cannot fast-forward. Local files and previous remote history were preserved."
   }
 ]

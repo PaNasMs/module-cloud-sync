@@ -68,6 +68,8 @@ func (e *Engine) cloudAction(ctx context.Context, p map[string]any) (any, error)
 			}
 		}
 		return map[string]any{}, nil
+	case "repositories":
+		return e.repositories(ctx, p)
 	case "folders":
 		a, err := e.account(str(p, "account"))
 		if err != nil {
@@ -97,6 +99,9 @@ func (e *Engine) cloudAction(ctx context.Context, p map[string]any) (any, error)
 		a, err := e.account(str(p, "account"))
 		if err != nil {
 			return nil, err
+		}
+		if a.Provider == "github" {
+			return e.createRepositoryTask(ctx, a, p)
 		}
 		local, err := e.Local(str(p, "local"))
 		if err != nil {
@@ -184,7 +189,7 @@ func (e *Engine) taskAction(kind, id string) (any, error) {
 			_ = e.event(id, "removed", "Task removed; local and cloud files preserved")
 		}
 	case "task.resume", "task.run":
-		r, err := e.DB.Exec("UPDATE tasks SET paused=0,dirty=1,status='queued',error='',retry_at=0,retry_count=0 WHERE id=? AND status!='running'", id)
+		r, err := e.DB.Exec("UPDATE tasks SET paused=0,dirty=1,status='queued',error='',snapshot=CASE WHEN direction='github' THEN '' ELSE snapshot END,retry_at=0,retry_count=0 WHERE id=? AND status!='running'", id)
 		if err != nil {
 			return nil, err
 		}

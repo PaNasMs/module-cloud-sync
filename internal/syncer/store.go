@@ -26,6 +26,8 @@ type Account struct {
 	Owner    string `json:"-"`
 }
 type Task struct {
+	Interval    int    `json:"interval_minutes,omitempty"`
+	Branch      string `json:"branch,omitempty"`
 	ID          string `json:"id"`
 	Account     string `json:"account"`
 	Name        string `json:"name"`
@@ -130,6 +132,7 @@ func Open(root, runtime, owner string, broker Broker) (*Engine, error) {
 	db.SetMaxOpenConns(1)
 	schema := `CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY,provider TEXT NOT NULL,label TEXT NOT NULL,identity TEXT NOT NULL,cursor TEXT NOT NULL DEFAULT '',error TEXT NOT NULL DEFAULT '',grant_id TEXT NOT NULL DEFAULT '',owner TEXT NOT NULL DEFAULT '');
  CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY,account TEXT NOT NULL REFERENCES accounts(id),name TEXT NOT NULL,local TEXT NOT NULL,remote TEXT NOT NULL,direction TEXT NOT NULL,mount TEXT NOT NULL,paused INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'queued',dirty INTEGER NOT NULL DEFAULT 1,initialized INTEGER NOT NULL DEFAULT 0,snapshot TEXT NOT NULL DEFAULT '',error TEXT NOT NULL DEFAULT '',last_sync INTEGER NOT NULL DEFAULT 0);
+ CREATE TABLE IF NOT EXISTS git_tasks(task TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,repository_id INTEGER NOT NULL,interval_minutes INTEGER NOT NULL DEFAULT 15,next_check INTEGER NOT NULL DEFAULT 0,branch TEXT NOT NULL DEFAULT '');
  CREATE TABLE IF NOT EXISTS history(id INTEGER PRIMARY KEY,task TEXT,at INTEGER NOT NULL,kind TEXT NOT NULL,message TEXT NOT NULL);`
 	if _, err = db.Exec(schema); err != nil {
 		db.Close()
@@ -228,7 +231,7 @@ func (e *Engine) account(id string) (Account, error) {
 	return Account{}, problem("Account not found")
 }
 func (e *Engine) tasks() ([]Task, error) {
-	rows, err := e.DB.Query("SELECT id,account,name,local,remote,direction,mount,paused,status,dirty,initialized,snapshot,error,last_sync,recovery,retry_at,retry_count FROM tasks ORDER BY last_sync")
+	rows, err := e.DB.Query("SELECT id,account,name,local,remote,direction,mount,paused,status,dirty,initialized,snapshot,error,last_sync,recovery,retry_at,retry_count,COALESCE((SELECT interval_minutes FROM git_tasks WHERE task=tasks.id),0),COALESCE((SELECT branch FROM git_tasks WHERE task=tasks.id),'') FROM tasks ORDER BY last_sync")
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +239,7 @@ func (e *Engine) tasks() ([]Task, error) {
 	out := []Task{}
 	for rows.Next() {
 		var t Task
-		if err = rows.Scan(&t.ID, &t.Account, &t.Name, &t.Local, &t.Remote, &t.Direction, &t.Mount, &t.Paused, &t.Status, &t.Dirty, &t.Initialized, &t.Snapshot, &t.Error, &t.LastSync, &t.Recovery, &t.RetryAt, &t.RetryCount); err != nil {
+		if err = rows.Scan(&t.ID, &t.Account, &t.Name, &t.Local, &t.Remote, &t.Direction, &t.Mount, &t.Paused, &t.Status, &t.Dirty, &t.Initialized, &t.Snapshot, &t.Error, &t.LastSync, &t.Recovery, &t.RetryAt, &t.RetryCount, &t.Interval, &t.Branch); err != nil {
 			return nil, err
 		}
 		out = append(out, t)

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -38,7 +39,7 @@ func (e *Engine) config(a Account) string {
 	return filepath.Join(e.Root, a.ID+".conf")
 }
 func (e *Engine) ensure(ctx context.Context, a Account, force bool) (bool, error) {
-	if a.Provider != "drive" && a.Provider != "dropbox" {
+	if a.Provider != "drive" && a.Provider != "dropbox" && a.Provider != "github" {
 		return false, nil
 	}
 	if a.Grant == "" || !validGrant(a.Grant) || a.Owner != e.Owner {
@@ -67,7 +68,7 @@ func (e *Engine) ensure(ctx context.Context, a Account, force bool) (bool, error
 		return false, &Failure{"Cloud permission belongs to another provider or lacks file access", true}
 	}
 	changed := !ok || old.Access.AccessToken != access.AccessToken
-	if changed {
+	if changed && a.Provider != "github" {
 		v := map[string]any{"access_token": access.AccessToken, "token_type": "Bearer", "expiry": access.ExpiresAt}
 		if err = atomicFile(e.config(a), []byte("[cloud]\ntype = "+a.Provider+"\ntoken = "+marshal(v)+"\n")); err != nil {
 			return false, err
@@ -232,7 +233,7 @@ func (e *Engine) listing(ctx context.Context, a Account, remote string) (string,
 }
 func (e *Engine) saveAccount(ctx context.Context, p map[string]any) (any, error) {
 	provider := str(p, "provider")
-	if provider != "drive" && provider != "dropbox" {
+	if provider != "drive" && provider != "dropbox" && provider != "github" {
 		return nil, problem("Unsupported provider")
 	}
 	id := str(p, "id")
@@ -286,6 +287,9 @@ func (e *Engine) saveAccount(ctx context.Context, p map[string]any) (any, error)
 	if provider == "dropbox" {
 		address = "https://api.dropboxapi.com/2/users/get_current_account"
 	}
+	if provider == "github" {
+		address = "https://api.github.com/user"
+	}
 	data, err := e.api(ctx, a, address, nil)
 	if err != nil {
 		return nil, err
@@ -295,6 +299,14 @@ func (e *Engine) saveAccount(ctx context.Context, p map[string]any) (any, error)
 		a.Identity = str(u, "permissionId")
 	} else {
 		a.Identity = str(data, "account_id")
+		if provider == "github" {
+			if id, ok := data["id"].(float64); ok && id > 0 {
+				a.Identity = fmt.Sprintf("%.0f", id)
+			}
+			if a.Label == "" {
+				a.Label = str(data, "login")
+			}
+		}
 	}
 	if a.Identity == "" {
 		return nil, problem("Cloud returned an invalid account identity.")
@@ -311,7 +323,9 @@ func (e *Engine) saveAccount(ctx context.Context, p map[string]any) (any, error)
 			return nil, problem("This cloud account is already connected. Reconnect the existing connection.")
 		}
 	}
-	a.Cursor, err = e.initialCursor(ctx, a)
+	if provider != "github" {
+		a.Cursor, err = e.initialCursor(ctx, a)
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -68,6 +68,6 @@ func (e *Engine) refreshConfig(ctx context.Context, a Account) (string, func(), 
 }
 
 func scopeAllowed(provider, scope string) bool {
-	return (provider == "drive" && (scope == "https://www.googleapis.com/auth/drive" || scope == "https://www.googleapis.com/auth/drive.readonly")) ||
+	return (provider == "github" && scope == "repo") || (provider == "drive" && (scope == "https://www.googleapis.com/auth/drive" || scope == "https://www.googleapis.com/auth/drive.readonly")) ||
 		(provider == "dropbox" && scope == "account_info.read files.metadata.read files.content.read files.content.write")
 }
