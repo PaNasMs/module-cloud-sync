@@ -294,3 +294,7 @@ Original code is licensed under
 [Sustainable Use License 1.0](LICENSE). See [NOTICE](NOTICE) for third-party
 components. The Go SDK and SQLite dependencies keep their own licenses, and rclone
 is a separately installed dependency.
+
+Repository updates take an exclusive advisory lock on the repository directory,
+shared with Files 0.3.16+ branch switching. A busy repository is retried through
+the normal error handling. External command-line Git does not take this lock.

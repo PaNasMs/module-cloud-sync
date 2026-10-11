@@ -293,6 +293,15 @@ func (e *Engine) runRepositoryTask(parent context.Context, t Task) (result error
 }
 
 func (e *Engine) updateRepository(ctx context.Context, t Task, remote, branch, token string) error {
+	folder, err := os.Open(t.Local)
+	if err != nil {
+		return err
+	}
+	defer folder.Close()
+	if err = syscall.Flock(int(folder.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		return problem("Repository is busy; retry after the file manager finishes")
+	}
+
 	run := func(args ...string) ([]byte, error) { return gitCommand(ctx, t.Local, token, args...) }
 	meta := filepath.Join(t.Local, ".git")
 	info, err := os.Lstat(meta)
