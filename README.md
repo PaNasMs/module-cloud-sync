@@ -40,7 +40,7 @@ configured separately in Google Cloud.
 2. Add a GitHub connection in Cloud Sync and approve the `repo` permission. GitHub OAuth grants **read and write** repository access; Cloud Sync only reads and never pushes. An organization may require its own approval.
 3. Select one repository, an empty local folder, then start the task. Use separate tasks for separate repositories. The searchable selector initially loads 50 account repositories. Typing searches GitHub by name (or owner/name), including public repositories and private repositories authorized for the account. Search returns up to 50 matches; narrow the query for more specific results.
 
-New tasks run immediately. All repository tasks then use the shared cron schedule `0 3,15 * * *` (03:00 and 15:00 in the NAS timezone), evaluated by the Go worker without a separate cron daemon. Tasks execute sequentially; an overdue batch runs once after downtime. Paused tasks remain paused.
+New tasks run immediately. All repository tasks then use the shared cron schedule `0 10,18 * * *` (10:00 and 18:00 in the NAS timezone), evaluated by the Go worker without a separate cron daemon. Tasks execute sequentially; an overdue batch runs once after downtime, only between 10:00 and 20:00. Overnight catch-up waits until 10:00. Already running tasks are not interrupted; manual and initial runs remain immediate. Paused tasks remain paused.
 
 The result is a normal, non-shallow Git repository with `.git`. All advertised
 branches and tags are fetched; the initial working tree uses the default branch.

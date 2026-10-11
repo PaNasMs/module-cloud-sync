@@ -160,7 +160,7 @@
   "gitServer15": "The checked-out branch no longer exists on GitHub. Local files and history were preserved.",
   "gitServer16": "The local branch cannot fast-forward. Local files and previous remote history were preserved.",
   "repositorySchedule": "Schedule",
-  "repositoryScheduleHelp": "Immediately after creation, then every day at 03:00 and 15:00 (NAS time).",
+  "repositoryScheduleHelp": "Immediately after creation, then every day at 10:00 and 18:00 (NAS time).",
   "repositorySearch": "Search repositories…",
   "repositorySearchHelp": "Start with 50 of your repositories. Type a name or owner/name to search GitHub, including public repositories and private repositories your account can access.",
   "repositoryMore": "Showing up to 50 matches. Refine your search to find others.",
