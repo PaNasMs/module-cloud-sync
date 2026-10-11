@@ -26,7 +26,6 @@ type Account struct {
 	Owner    string `json:"-"`
 }
 type Task struct {
-	Interval    int    `json:"interval_minutes,omitempty"`
 	Branch      string `json:"branch,omitempty"`
 	ID          string `json:"id"`
 	Account     string `json:"account"`
@@ -231,7 +230,7 @@ func (e *Engine) account(id string) (Account, error) {
 	return Account{}, problem("Account not found")
 }
 func (e *Engine) tasks() ([]Task, error) {
-	rows, err := e.DB.Query("SELECT id,account,name,local,remote,direction,mount,paused,status,dirty,initialized,snapshot,error,last_sync,recovery,retry_at,retry_count,COALESCE((SELECT interval_minutes FROM git_tasks WHERE task=tasks.id),0),COALESCE((SELECT branch FROM git_tasks WHERE task=tasks.id),'') FROM tasks ORDER BY last_sync")
+	rows, err := e.DB.Query("SELECT id,account,name,local,remote,direction,mount,paused,status,dirty,initialized,snapshot,error,last_sync,recovery,retry_at,retry_count,COALESCE((SELECT branch FROM git_tasks WHERE task=tasks.id),'') FROM tasks ORDER BY last_sync")
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +238,7 @@ func (e *Engine) tasks() ([]Task, error) {
 	out := []Task{}
 	for rows.Next() {
 		var t Task
-		if err = rows.Scan(&t.ID, &t.Account, &t.Name, &t.Local, &t.Remote, &t.Direction, &t.Mount, &t.Paused, &t.Status, &t.Dirty, &t.Initialized, &t.Snapshot, &t.Error, &t.LastSync, &t.Recovery, &t.RetryAt, &t.RetryCount, &t.Interval, &t.Branch); err != nil {
+		if err = rows.Scan(&t.ID, &t.Account, &t.Name, &t.Local, &t.Remote, &t.Direction, &t.Mount, &t.Paused, &t.Status, &t.Dirty, &t.Initialized, &t.Snapshot, &t.Error, &t.LastSync, &t.Recovery, &t.RetryAt, &t.RetryCount, &t.Branch); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
