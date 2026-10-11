@@ -1,7 +1,7 @@
 {
   "name": "@panasms/module-cloud-sync",
   "private": true,
-  "version": "0.1.24",
+  "version": "0.1.25",
   "type": "module",
   "scripts": {
     "build": "tsc && vite build",
@@ -25,7 +25,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@panasms/module-sdk": "https://github.com/PaNasMs/module-sdk/archive/5b4032ef78f84066dcc298cb59c96558efd4eabc.tar.gz",
+    "@panasms/module-sdk": "https://github.com/PaNasMs/module-sdk/archive/2415d3ae649586282a92b49ff191ceed6ef0c7c6.tar.gz",
     "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -39,5 +39,5 @@
     "node": ">=22.12.0",
     "npm": ">=9.5.0"
   },
-  "license": "PolyForm-Noncommercial-1.0.0"
+  "license": "SEE LICENSE IN LICENSE"
 }
