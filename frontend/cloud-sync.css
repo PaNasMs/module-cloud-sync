@@ -288,3 +288,13 @@
     padding: var(--space-4);
   }
 }
+
+.cloud-repository-picker { position: relative; display: grid; gap: var(--space-2); }
+.cloud-repository-control { position: relative; }
+.cloud-repository-results { position: absolute; top: calc(100% + var(--space-1)); left: 0; right: 0; z-index: 2; max-height: 240px; overflow-y: auto; padding: var(--space-2); }
+.cloud-repository-option { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-3); min-height: var(--control); cursor: pointer; overflow-wrap: anywhere; border-radius: var(--radius-sm); }
+.cloud-repository-option[data-active="true"], .cloud-repository-option[aria-selected="true"] { background: var(--inset); }
+.cloud-repository-option small { color: var(--mute); }
+
+.cloud-repository-control input { padding-right: 48px; }
+.cloud-repository-control .cloud-repository-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 0; width: 40px; height: 40px; min-height: 40px; background: transparent; border: 0; }

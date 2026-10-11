@@ -1,5 +1,5 @@
 import { DialogContent, WaitingSurface } from "@panasms/ui";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
@@ -100,6 +100,76 @@ async function api<T>(body?: unknown): Promise<T> {
   );
   if (result.error) throw Error(result.error);
   return result;
+}
+type Repository = { id: number; full_name: string; private: boolean };
+function RepositoryPicker({ account, value, onChange }: { account: string; value: string; onChange: (value: string) => void }) {
+  const id = useId();
+  const root = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(value);
+  const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [active, setActive] = useState(-1);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(search.trim()), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, []);
+  const query = useQuery({
+    queryKey: ["cloud-sync-repositories", account, debounced],
+    queryFn: () => api<{ repositories: Repository[]; more?: boolean }>({action: "repositories", account, query: debounced}),
+    enabled: open,
+    retry: false,
+    staleTime: 30000,
+  });
+  const pending = search.trim() !== debounced || query.isFetching;
+  const rows = pending || query.error ? [] : query.data?.repositories ?? [];
+  useEffect(() => setActive(-1), [debounced, query.data]);
+  useEffect(() => {
+    if (open && active >= 0) document.getElementById(`${id}-${active}`)?.scrollIntoView({block:"nearest"});
+  }, [active, open, id]);
+  const choose = (repo: Repository) => {
+    onChange(repo.full_name);setText(repo.full_name);setOpen(false);setActive(-1);
+  };
+  return <div ref={root} className="cloud-repository-picker" data-dialog-popup onBlur={(event) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false);
+  }}>
+    <label htmlFor={id}>{tr("repository")}</label>
+    <div className="cloud-repository-control"><input id={id} role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={`${id}-list`}
+      aria-activedescendant={open && active >= 0 && rows[active] ? `${id}-${active}` : undefined}
+      aria-describedby={`${id}-hint`} autoComplete="off" placeholder={tr("repositorySearch")} maxLength={128}
+      value={text} onFocus={() => setOpen(true)} onClick={() => setOpen(true)}
+      onChange={(event) => {setText(event.target.value);setSearch(event.target.value);onChange("");setActive(-1);setOpen(true);}}
+      onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing) return;
+        if (event.key === "Escape" && open) {event.preventDefault();event.stopPropagation();setOpen(false);}
+        else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();setOpen(true);setActive(index => rows.length ? index < 0 ? (event.key === "ArrowDown" ? 0 : rows.length - 1) : (index + (event.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length : -1);
+        } else if (event.key === "Enter" && open) {
+          event.preventDefault();if (rows[active]) choose(rows[active]);
+        }
+      }} />
+    <Button type="button" className="cloud-repository-toggle" aria-label={tr("chooseRepository")} aria-expanded={open}
+      onMouseDown={event => event.preventDefault()} onClick={() => {if (!open) root.current?.querySelector("input")?.focus();setOpen(!open);}}><Icon path={mdiChevronDown} /></Button>
+    {open && <div className="multi-select-popover cloud-repository-results">
+      <div role="status">{pending ? tr("repositoryLoading") : query.error ? query.error.message : !rows.length ? tr("noRepositories") : query.data?.more ? tr("repositoryMore") : ""}</div>
+      {query.error && <Button type="button" onClick={() => void query.refetch()}>{tr("retry")}</Button>}
+      <div role="listbox" id={`${id}-list`} aria-label={tr("repository")} aria-busy={pending}>
+        {rows.map((repo,index) => <div role="option" id={`${id}-${index}`} key={repo.id} aria-selected={repo.full_name === value}
+          className="cloud-repository-option" data-active={active === index}
+          onMouseDown={event => event.preventDefault()} onMouseEnter={() => setActive(index)} onClick={() => choose(repo)}>
+          <span>{repo.full_name}</span>{repo.private && <small>{tr("privateRepository")}</small>}
+        </div>)}
+      </div>
+    </div>}
+    </div><p id={`${id}-hint`} className="muted">{tr("repositorySearchHelp")}</p>
+  </div>;
 }
 type FolderNode = {
   name: string;
@@ -383,11 +453,6 @@ export function CloudSyncPage() {
   }
   const chosenAccount = state.accounts.find((a) => a.id === taskAccount);
   const isGitHub = chosenAccount?.provider === "github";
-  const repositories = useQuery({
-    queryKey: ["cloud-sync-repositories", taskAccount],
-    queryFn: () => api<{ repositories: { id: number; full_name: string; private: boolean }[] }>({ action: "repositories", account: taskAccount }),
-    enabled: dialog !== null && step === 2 && isGitHub,
-  });
   async function browse(kind: "local" | "remote", path: string) {
     setBusy(true);
     setError("");
@@ -1025,14 +1090,7 @@ export function CloudSyncPage() {
                       />
                     </label>
                     {isGitHub && <>
-                      {repositories.isPending && <p role="status">{tr("repositoryLoading")}</p>}
-                      {repositories.error && <Notice error>{repositories.error.message}<Button type="button" onClick={() => void repositories.refetch()}>{tr("retry")}</Button></Notice>}
-                      <label>{tr("repository")}<select value={remote} onChange={event => { setRemote(event.target.value); setRemoteChosen(!!event.target.value); }}>
-                        <option value="">{tr("chooseRepository")}</option>
-                        {remote && !repositories.data?.repositories.some(r => r.full_name === remote) && <option value={remote}>{remote}</option>}
-                        {repositories.data?.repositories.map(r => <option key={r.id} value={r.full_name}>{r.full_name}{r.private ? ` · ${tr("privateRepository")}` : ""}</option>)}
-                      </select></label>
-                      {repositories.data && !repositories.data.repositories.length && <p>{tr("noRepositories")}</p>}
+                      <RepositoryPicker key={taskAccount} account={taskAccount} value={remote} onChange={(value) => {setRemote(value);setRemoteChosen(!!value);}} />
                       <p className="muted">{tr("repositoryScheduleHelp")}</p>
                       <p className="muted">{tr("repositoryHelp")}</p>
                     </>}

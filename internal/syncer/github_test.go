@@ -190,7 +190,7 @@ func TestRepositoryPauseInterruptsRemoteProbe(t *testing.T) {
 	}
 }
 
-func TestRepositoryListLoadsTwoPages(t *testing.T) {
+func TestRepositoryListAndRemoteSearch(t *testing.T) {
 	e := fixture(t)
 	e.Broker = func(context.Context, string) (external.Access, error) {
 		return external.Access{AccessToken: "test", TokenType: "Bearer", Scope: "repo", ExpiresAt: time.Now().Add(time.Hour)}, nil
@@ -198,26 +198,56 @@ func TestRepositoryListLoadsTwoPages(t *testing.T) {
 	if _, err := e.DB.Exec("UPDATE accounts SET provider='github',grant_id=?,owner=? WHERE id=?", newID(), e.Owner, accountID); err != nil {
 		t.Fatal(err)
 	}
-	calls := 0
-	e.HTTP = doFunc(func(r *http.Request) (*http.Response, error) {
-		calls++
-		if r.URL.Path != "/user/repos" || r.URL.Query().Get("page") != fmt.Sprint(calls) || r.URL.Query().Get("per_page") != "100" {
-			t.Fatalf("unexpected request: %s", r.URL)
-		}
-		batch := make([]repository, 100)
-		for i := range batch {
-			batch[i] = repository{ID: int64((calls-1)*100 + i + 1), Name: fmt.Sprintf("org/repo-%d-%d", calls, i)}
-		}
-		data, _ := json.Marshal(batch)
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(data))}, nil
-	})
-	result, err := e.repositories(context.Background(), map[string]any{"account": accountID})
-	if err != nil {
-		t.Fatal(err)
+	for _, search := range []string{"", "not-in-first-fifty", "PaNasMs/module", "PaNasMs/", "name&per_page=100"} {
+		t.Run(search, func(t *testing.T) {
+			calls := 0
+			e.HTTP = doFunc(func(r *http.Request) (*http.Response, error) {
+				calls++
+				if r.Header.Get("Authorization") != "Bearer test" || r.URL.Query().Get("per_page") != "50" {
+					t.Fatalf("bad request %s", r.URL)
+				}
+				if search == "" {
+					if r.URL.Path != "/user/repos" {
+						t.Fatal(r.URL)
+					}
+					batch := make([]repository, 50)
+					for i := range batch {
+						batch[i] = repository{ID: int64(i + 1), Name: fmt.Sprintf("org/repo-%d", i)}
+					}
+					data, _ := json.Marshal(batch)
+					return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(data))}, nil
+				}
+				expected := search + " in:name fork:true"
+				if strings.HasPrefix(search, "PaNasMs/") {
+					expected = "user:PaNasMs " + strings.TrimPrefix(search, "PaNasMs/") + " in:name fork:true"
+				}
+				if r.URL.Path != "/search/repositories" || r.URL.Query().Get("q") != expected {
+					t.Fatal(r.URL)
+				}
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"total_count":80,"items":[{"id":501,"full_name":"org/not-in-first-fifty","private":true}]}`))}, nil
+			})
+			result, err := e.repositories(context.Background(), map[string]any{"account": accountID, "query": search})
+			if err != nil {
+				t.Fatal(err)
+			}
+			data := result.(map[string]any)
+			repos := data["repositories"].([]repository)
+			if calls != 1 {
+				t.Fatal(calls)
+			}
+			if search == "" && len(repos) != 50 {
+				t.Fatal(len(repos))
+			}
+			if search != "" && (len(repos) != 1 || repos[0].ID != 501 || data["more"] != true) {
+				t.Fatal(data)
+			}
+		})
 	}
-	repos := result.(map[string]any)["repositories"].([]repository)
-	if calls != 2 || len(repos) != 200 || repos[199].ID != 200 {
-		t.Fatalf("calls=%d repos=%d", calls, len(repos))
+	e.HTTP = doFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 403, Body: io.NopCloser(strings.NewReader(`{}`))}, nil
+	})
+	if _, err := e.repositories(context.Background(), map[string]any{"account": accountID, "query": "repo"}); err == nil {
+		t.Fatal("rate limit must be reported")
 	}
 }
 
