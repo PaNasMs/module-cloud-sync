@@ -2,7 +2,7 @@
   "id": "cloud-sync",
   "title": "Cloud Sync",
   "description": "Synchronize selected folders with multiple Google Drive and Dropbox accounts.",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "api": 1,
   "core": ">=0.2.15,<0.3.0",
   "architecture": "arm64",
@@ -15,7 +15,7 @@
     "libpam0g": "1.4.0",
     "systemd": "252"
   },
-  "license": "LicenseRef-PaNasMs-Source-Available-1.0",
+  "license": "SUL-1.0",
   "translations": {
     "en": {
       "title": "Cloud Sync",
