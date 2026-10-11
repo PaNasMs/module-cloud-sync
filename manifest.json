@@ -2,7 +2,7 @@
   "id": "cloud-sync",
   "title": "Cloud Sync",
   "description": "Sync Google Drive and Dropbox folders and back up GitHub repositories.",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "api": 1,
   "core": ">=0.2.19,<0.3.0",
   "architecture": "arm64",

@@ -137,7 +137,7 @@ function RepositoryPicker({ account, value, onChange }: { account: string; value
   const choose = (repo: Repository) => {
     onChange(repo.full_name);setText(repo.full_name);setOpen(false);setActive(-1);
   };
-  return <div ref={root} className="cloud-repository-picker" data-dialog-popup onKeyDown={(event) => {
+  return <div ref={root} className="cloud-repository-picker" data-repository-open={open} data-dialog-popup onKeyDown={(event) => {
     if (event.key === "Escape" && open) {event.preventDefault();event.stopPropagation();setOpen(false);root.current?.querySelector("input")?.focus();}
   }} onBlur={(event) => {
     if (!event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false);
@@ -160,7 +160,7 @@ function RepositoryPicker({ account, value, onChange }: { account: string; value
     <Button type="button" className="cloud-repository-toggle" aria-label={tr("chooseRepository")} aria-expanded={open}
       onMouseDown={event => event.preventDefault()} onClick={() => {if (!open) root.current?.querySelector("input")?.focus();setOpen(!open);}}><Icon path={mdiChevronDown} /></Button>
     {open && <div className="multi-select-popover cloud-repository-results">
-      <div role="status">{pending ? tr("repositoryLoading") : query.error ? query.error.message : !rows.length ? tr("noRepositories") : query.data?.more ? tr("repositoryMore") : ""}</div>
+      <div role="status">{pending ? tr("repositoryLoading") : query.error ? query.error.message : !rows.length ? tr(debounced ? "repositoryNoMatches" : "noRepositories") : query.data?.more ? tr("repositoryMore") : ""}</div>
       {query.error && <Button type="button" onClick={() => void query.refetch()}>{tr("retry")}</Button>}
       <div role="listbox" id={`${id}-list`} aria-label={tr("repository")} aria-busy={pending}>
         {rows.map((repo,index) => <div role="option" id={`${id}-${index}`} key={repo.id} aria-selected={repo.full_name === value}
@@ -784,6 +784,10 @@ export function CloudSyncPage() {
             busy={busy}
             className="settings-dialog cloud-sync-dialog"
             onEscapeKeyDown={(event) => {
+              if ((event.target as HTMLElement).closest('[data-repository-open="true"]')) {
+                event.preventDefault();
+                return;
+              }
               // The folder picker is an inner view of the wizard: Escape returns to the form.
               if (picker && !busy) {
                 event.preventDefault();
