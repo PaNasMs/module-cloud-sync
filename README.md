@@ -6,7 +6,7 @@ panel for managing a NAS on Debian-based Linux. Each user can connect several
 accounts per provider and run several independent folder pairs per account.
 Project website: <https://panasms.github.io/>.
 
-The current version is 0.1.24. It requires PaNasMs core `>=0.2.15,<0.3.0` and
+The current version is 0.1.27. It requires PaNasMs core `>=0.2.19,<0.3.0` and
 module API 1, and is published for ARM64 and AMD64.
 
 ## Install
@@ -34,6 +34,35 @@ Google apps in the External Testing publishing status get Drive grants that
 expire, usually after seven days. Production consent and app verification are
 configured separately in Google Cloud.
 
+### GitHub repository backups
+
+1. Configure the existing [GitHub OAuth client](https://panasms.github.io/docs/setup/github/) and link your GitHub account in your profile.
+2. Add a GitHub connection in Cloud Sync and approve the `repo` permission. GitHub OAuth grants **read and write** repository access; Cloud Sync only reads and never pushes. An organization may require its own approval.
+3. Select one repository, an empty local folder and a check interval, then start the task. Use separate tasks for separate repositories.
+
+The result is a normal, non-shallow Git repository with `.git`. All advertised
+branches and tags are fetched; the initial working tree uses the default branch.
+Later updates respect the checked-out branch and only fast-forward a clean working
+tree. Local edits, diverging commits, detached HEAD or deletion of that branch
+pause the task for review. A deleted or inaccessible remote never deletes the
+local copy. Resume after resolving the reported condition; **Run now** also checks
+the local working tree even if the remote refs have not changed.
+
+Before fetching updates, old branch/tag tips are retained under
+`refs/panasms/history/<timestamp>/`. These refs retain the corresponding Git objects
+across remote deletions and force-pushes. They are not automatically expired, so
+storage usage grows with history. This is not a byte-for-byte backup of GitHub:
+Git LFS objects, submodule repositories, issues, pull requests and release assets
+are not downloaded. LFS pointer files and submodule references are retained.
+
+Scheduled checks compare remote refs before reading the archive. Unchanged refs
+do not wake the local data volume; explicit Run now, initial cloning and changed
+refs do access it. Commands run as the task owner, with hooks and automatic Git
+maintenance disabled. Tokens are provided through the child environment, never
+stored in `.git/config`, command arguments or task logs. The core keeps GitHub
+OAuth credentials encrypted; unlike Google/Dropbox, GitHub tokens may have no
+provider expiry. The broker limits how long modules cache them.
+
 ### Dropbox
 
 1. Set up the NAS Dropbox app with the
@@ -50,7 +79,7 @@ module removes the old credentials only after the new grant succeeds.
 
 The provider permission covers the whole account. The task configuration limits
 which folder Cloud Sync touches. Refresh tokens and OAuth client secrets stay
-encrypted in the core; the module receives only short-lived access tokens.
+encrypted in the core; the module receives access tokens with a bounded cache lease.
 
 ## Create a sync task
 

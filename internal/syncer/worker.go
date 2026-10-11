@@ -51,7 +51,7 @@ func (e *Engine) pauseError(id string, err error) {
 func (e *Engine) monitor(ctx context.Context) {
 	w, err := newWatcher()
 	if err != nil {
-		_, _ = e.DB.Exec("UPDATE tasks SET paused=1,status='error',error='Cannot monitor local files'")
+		_, _ = e.DB.Exec("UPDATE tasks SET paused=1,status='error',error='Cannot monitor local files' WHERE direction!='github'")
 		return
 	}
 	defer w.Close()
@@ -69,7 +69,7 @@ func (e *Engine) monitor(ctx context.Context) {
 			}
 			active := map[string]bool{}
 			for _, t := range tasks {
-				if t.Paused != 0 {
+				if t.Paused != 0 || t.Direction == "github" {
 					continue
 				}
 				active[t.ID] = true
@@ -157,6 +157,9 @@ func (e *Engine) cycle(ctx context.Context, next map[string]time.Time, failures 
 	}
 	blocked := map[string]bool{}
 	for _, a := range accounts {
+		if a.Provider == "github" {
+			continue
+		}
 		needed := false
 		for _, t := range tasks {
 			needed = needed || (t.Account == a.ID && t.Paused == 0)
@@ -228,6 +231,7 @@ func (e *Engine) cycle(ctx context.Context, next map[string]time.Time, failures 
 		failures[a.ID] = 0
 		next[a.ID] = time.Now().Add(time.Minute)
 	}
+	_, _ = e.DB.Exec("UPDATE tasks SET dirty=1 WHERE direction='github' AND paused=0 AND status='idle' AND id IN (SELECT task FROM git_tasks WHERE next_check<=?)", time.Now().Unix())
 	tasks, err = e.tasks()
 	if err != nil {
 		return

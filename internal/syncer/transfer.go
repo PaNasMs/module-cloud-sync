@@ -161,6 +161,9 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 		return lockErr
 	}
 	defer release()
+	if t.Direction == "github" {
+		return e.runRepositoryTask(ctx, t)
+	}
 	if !e.originalVolume(t) {
 		return problem("Local volume changed or is unavailable; reconnect the original volume")
 	}
