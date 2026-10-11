@@ -176,9 +176,37 @@ func gitCommand(ctx context.Context, dir, token string, args ...string) ([]byte,
 	return out.b.Bytes(), nil
 }
 
-func (e *Engine) runRepositoryTask(parent context.Context, t Task) error {
+func (e *Engine) runRepositoryTask(parent context.Context, t Task) (result error) {
 	ctx, cancel := context.WithTimeout(parent, 24*time.Hour)
 	defer cancel()
+	pauseWatch := make(chan struct{})
+	defer close(pauseWatch)
+	defer func() {
+		if ctx.Err() != nil {
+			var paused int
+			if e.DB.QueryRow("SELECT paused FROM tasks WHERE id=?", t.ID).Scan(&paused) == nil && paused != 0 {
+				result = errPaused
+			}
+		}
+	}()
+	go func() {
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-pauseWatch:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				var paused int
+				if e.DB.QueryRow("SELECT paused FROM tasks WHERE id=?", t.ID).Scan(&paused) != nil || paused != 0 {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
 	a, err := e.account(t.Account)
 	if err != nil {
 		return err

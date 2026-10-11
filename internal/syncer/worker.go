@@ -51,7 +51,7 @@ func (e *Engine) pauseError(id string, err error) {
 func (e *Engine) monitor(ctx context.Context) {
 	w, err := newWatcher()
 	if err != nil {
-		_, _ = e.DB.Exec("UPDATE tasks SET paused=1,status='error',error='Cannot monitor local files'")
+		_, _ = e.DB.Exec("UPDATE tasks SET paused=1,status='error',error='Cannot monitor local files' WHERE direction!='github'")
 		return
 	}
 	defer w.Close()

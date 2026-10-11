@@ -148,3 +148,41 @@ func TestRepositoryUnchangedDoesNotReadArchive(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRepositoryPauseInterruptsRemoteProbe(t *testing.T) {
+	e := fixture(t)
+	e.Broker = func(context.Context, string) (external.Access, error) {
+		return external.Access{AccessToken: "test-token", TokenType: "Bearer", Scope: "repo", ExpiresAt: time.Now().Add(time.Hour)}, nil
+	}
+	_, err := e.DB.Exec("UPDATE accounts SET provider='github',grant_id=?,owner=? WHERE id=?", newID(), e.Owner, accountID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.HTTP = doFunc(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"id":123,"full_name":"owner/repo","default_branch":"main"}`))}, nil
+	})
+	dir := t.TempDir()
+	if err = os.WriteFile(filepath.Join(dir, "git"), []byte("#!/bin/sh\nsleep 60\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+	task := addTask(t, e, "github")
+	task.Remote = "owner/repo"
+	if _, err = e.DB.Exec("INSERT INTO git_tasks(task,repository_id) VALUES(?,123)", task.ID); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- e.runRepositoryTask(context.Background(), task) }()
+	time.Sleep(100 * time.Millisecond)
+	if _, err = e.taskAction("task.pause", task.ID); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err != errPaused {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("pause did not cancel remote probe")
+	}
+}
