@@ -163,5 +163,6 @@
   "repositoryScheduleHelp": "Immediately after creation, then every day at 03:00 and 15:00 (NAS time).",
   "repositorySearch": "Search repositories…",
   "repositorySearchHelp": "Start with 50 of your repositories. Type a name or owner/name to search GitHub, including public repositories and private repositories your account can access.",
-  "repositoryMore": "Showing up to 50 matches. Refine your search to find others."
+  "repositoryMore": "Showing up to 50 matches. Refine your search to find others.",
+  "repositoryNoMatches": "No matching repositories. Try another name."
 }
