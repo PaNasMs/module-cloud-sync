@@ -260,6 +260,6 @@ OneDrive, Synology Drive and QuickConnect.
 ## License
 
 Original code is licensed under
-[PolyForm Noncommercial 1.0.0](LICENSE). See [NOTICE](NOTICE) for third-party
+[PaNasMs Source-Available License 1.0](LICENSE). See [NOTICE](NOTICE) for third-party
 components. The Go SDK and SQLite dependencies keep their own licenses, and rclone
 is a separately installed dependency.
