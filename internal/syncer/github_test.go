@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -333,5 +334,21 @@ func TestRepositorySharedScheduleAndRestart(t *testing.T) {
 			check(b.ID, 1)
 			check(paused.ID, 0)
 		})
+	}
+}
+
+func TestRepositoryFileManagerLock(t *testing.T) {
+	dir := t.TempDir()
+	f, err := os.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		t.Fatal(err)
+	}
+	e := fixture(t)
+	if err = e.updateRepository(context.Background(), Task{Local: dir}, "https://github.com/example/test.git", "main", ""); err == nil {
+		t.Fatal("sync ignored file manager lock")
 	}
 }
