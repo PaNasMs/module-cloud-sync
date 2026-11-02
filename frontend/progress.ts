@@ -1,6 +1,7 @@
 export type SyncProgress = {
   phase: string;
   observedAt: number;
+  ageSeconds: number;
   measured: boolean;
   bytes: number;
   totalBytes: number;
@@ -12,8 +13,8 @@ export type SyncProgress = {
   eta: number | null;
 };
 
-export function progressView(p: SyncProgress, disconnected: boolean, now: number) {
-  const stale = disconnected || (p.measured && now / 1000 - p.observedAt > 10);
+export function progressView(p: SyncProgress, disconnected: boolean, now: number, fetchedAt: number) {
+  const stale = disconnected || (p.measured && p.ageSeconds + Math.max(0, now - fetchedAt) / 1000 > 10);
   const checking = p.phase === "checking" || p.phase === "comparing";
   const done = checking ? p.checks : p.bytes;
   const total = checking ? p.totalChecks : p.totalBytes;

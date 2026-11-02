@@ -125,3 +125,40 @@ func TestRealRcloneProgress(t *testing.T) {
 		}
 	}
 }
+
+func TestJSONDiagnosticsRedactEscapedSecretsAndKeepFailures(t *testing.T) {
+	raw, _ := json.Marshal(map[string]any{
+		"msg":     "server returned {\"access_token\":\"hidden-access\",\"refresh_token\":\"hidden-refresh\"}; Bearer hidden-bearer",
+		"error":   "connection refused",
+		"context": map[string]any{"client_secret": "hidden-client"},
+	})
+	text := redactTransferLog(string(raw))
+	for _, secret := range []string{"hidden-access", "hidden-refresh", "hidden-bearer", "hidden-client"} {
+		if strings.Contains(text, secret) {
+			t.Fatal("secret retained", secret)
+		}
+	}
+	if !json.Valid([]byte(text)) || safeError(transferFailure(text)) != "Cloud is unreachable; retry later." {
+		t.Fatal(text)
+	}
+	for _, message := range []string{"must run --resync", "invalid_grant", "429", "max-delete", "failed to check: differences found"} {
+		raw, _ = json.Marshal(map[string]string{"msg": "operation failed", "error": message})
+		if safeError(transferFailure(string(raw))) != safeError(transferFailure(redactTransferLog(string(raw)))) {
+			t.Fatal(message)
+		}
+	}
+}
+
+func TestProgressAgeUsesServerElapsedTime(t *testing.T) {
+	e := &Engine{}
+	ctx, finish := e.startProgress(context.Background(), "task")
+	defer finish()
+	p := progressFrom(ctx)
+	p.value.ObservedAt = time.Now().Add(time.Hour).Unix()
+	p.updated = time.Now().Add(-15 * time.Second)
+	tasks := []Task{{ID: "task", Status: "running"}}
+	e.attachProgress(tasks)
+	if tasks[0].Progress.AgeSeconds < 15 || tasks[0].Progress.AgeSeconds > 16 {
+		t.Fatal(tasks[0].Progress)
+	}
+}

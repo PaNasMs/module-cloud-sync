@@ -339,7 +339,7 @@ function LocalFolderTree({
     </div>
   );
 }
-function TaskProgress({ task, disconnected }: { task: Task; disconnected: boolean }) {
+function TaskProgress({ task, disconnected, fetchedAt }: { task: Task; disconnected: boolean; fetchedAt: number }) {
   const p = task.progress;
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -347,7 +347,7 @@ function TaskProgress({ task, disconnected }: { task: Task; disconnected: boolea
     return () => clearInterval(timer);
   }, []);
   if (task.status !== "running") return null;
-  const view = p ? progressView(p, disconnected, now) : undefined;
+  const view = p ? progressView(p, disconnected, now, fetchedAt) : undefined;
   const phase = task.paused ? "pausing" : p ? `progress_${p.phase}` : "running";
   const percent = task.paused ? undefined : view?.percent;
   return <div className="cloud-progress">
@@ -733,7 +733,7 @@ export function CloudSyncPage() {
                             : tr("notYet")}
                         </dd>
                       </dl>
-                      <TaskProgress task={selectedTask} disconnected={query.isError} />
+                      <TaskProgress task={selectedTask} disconnected={query.isError} fetchedAt={query.dataUpdatedAt} />
                       {selectedTask.error && (
                         <Notice error>{selectedTask.error}</Notice>
                       )}

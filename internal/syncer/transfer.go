@@ -3,6 +3,7 @@ package syncer
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/PaNasMs/module-sdk/maintenance"
 	"io/fs"
@@ -151,9 +152,44 @@ func (e *Engine) runProcess(ctx context.Context, a Account, args []string, check
 var transferSecrets = regexp.MustCompile(`(?i)(bearer\s+|(?:access_token|refresh_token|client_secret)["']?\s*[:=]\s*["']?)[^\s"'&,}]+`)
 var transferURLs = regexp.MustCompile(`https?://[^\s"'<>]+`)
 
-func redactTransferLog(text string) string {
+func redactTransferText(text string) string {
 	text = transferSecrets.ReplaceAllString(text, "${1}[redacted]")
 	return transferURLs.ReplaceAllString(text, "[endpoint]")
+}
+
+func redactLogValue(value any) any {
+	switch v := value.(type) {
+	case string:
+		return redactTransferText(v)
+	case []any:
+		for i := range v {
+			v[i] = redactLogValue(v[i])
+		}
+	case map[string]any:
+		for key, item := range v {
+			switch strings.ToLower(key) {
+			case "access_token", "refresh_token", "client_secret":
+				v[key] = "[redacted]"
+			default:
+				v[key] = redactLogValue(item)
+			}
+		}
+	}
+	return value
+}
+
+func redactTransferLog(text string) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		var value any
+		if json.Unmarshal([]byte(line), &value) == nil {
+			raw, _ := json.Marshal(redactLogValue(value))
+			lines[i] = string(raw)
+		} else {
+			lines[i] = redactTransferText(line)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func transferFailure(log string) error {

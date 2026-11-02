@@ -9,6 +9,7 @@ import (
 )
 
 type Progress struct {
+	AgeSeconds     float64  `json:"ageSeconds"`
 	Phase          string   `json:"phase"`
 	ObservedAt     int64    `json:"observedAt"`
 	Measured       bool     `json:"measured"`
@@ -24,8 +25,9 @@ type Progress struct {
 
 type taskProgress struct {
 	sync.Mutex
-	id    string
-	value Progress
+	id      string
+	value   Progress
+	updated time.Time
 }
 
 type progressKey struct{}
@@ -36,7 +38,7 @@ func progressFrom(ctx context.Context) *taskProgress {
 }
 
 func (e *Engine) startProgress(ctx context.Context, id string) (context.Context, func()) {
-	p := &taskProgress{id: id, value: Progress{Phase: "preparing", ObservedAt: time.Now().Unix()}}
+	p := &taskProgress{id: id, updated: time.Now(), value: Progress{Phase: "preparing", ObservedAt: time.Now().Unix()}}
 	e.progressMu.Lock()
 	e.progress = p
 	e.progressMu.Unlock()
@@ -61,6 +63,7 @@ func (e *Engine) attachProgress(tasks []Task) {
 	for i := range tasks {
 		if tasks[i].ID == p.id && tasks[i].Status == "running" {
 			value := p.value
+			value.AgeSeconds = time.Since(p.updated).Seconds()
 			tasks[i].Progress = &value
 		}
 	}
@@ -70,6 +73,7 @@ func setProgressPhase(ctx context.Context, phase string) {
 	if p := progressFrom(ctx); p != nil {
 		p.Lock()
 		p.value = Progress{Phase: phase, ObservedAt: time.Now().Unix()}
+		p.updated = time.Now()
 		p.Unlock()
 	}
 }
@@ -140,6 +144,7 @@ func (w *progressLog) flush() {
 		v.ObservedAt = time.Now().Unix()
 		v.Measured = true
 		w.progress.value = *v
+		w.progress.updated = time.Now()
 		w.progress.Unlock()
 	} else {
 		w.logs.Write(w.line)
