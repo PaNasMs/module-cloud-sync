@@ -6,7 +6,7 @@ panel for managing a NAS on Debian-based Linux. Each user can connect several
 accounts per provider and run several independent folder pairs per account.
 Project website: <https://panasms.github.io/>.
 
-The current version is 0.1.27. It requires PaNasMs core `>=0.2.19,<0.3.0` and
+The current version is 0.1.33. It requires PaNasMs core `>=0.2.19,<0.3.0` and
 module API 1, and is published for ARM64 and AMD64.
 
 ## Install
@@ -121,6 +121,17 @@ The sidebar lists sync tasks with their provider. The selected task shows both
 folders, the direction, the state, account actions and history on one page, and
 its ID is kept in the `sync` URL parameter. Connections without tasks are listed
 separately so you can add a task or remove them.
+
+Running tasks show their current phase. Google Drive and Dropbox transfers report
+bytes, files, speed and an estimated remaining time when rclone knows them;
+content verification reports checked files. Counters and percentages belong to
+the current stage, not the whole multi-stage run. Totals can grow during discovery.
+Unknown totals use an indeterminate indicator, and a running stage never claims
+100% completion. GitHub tasks show a named phase without a fabricated percentage.
+Live counters refresh every two seconds and are kept in worker memory, without
+per-second database writes. Stale or disconnected samples are labelled and hide
+speed and estimates. Pausing remains pending until the process actually stops;
+completed, failed and restarted tasks do not retain a previous run's counters.
 
 You can pause and resume a task, run it now, remove it and view its history.
 Removing a task or a connection leaves the synchronized files in place. Each

@@ -298,3 +298,21 @@
 
 .cloud-repository-control input { padding-right: 48px; }
 .cloud-repository-control .cloud-repository-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 0; width: 40px; height: 40px; min-height: 40px; background: transparent; border: 0; }
+
+.cloud-progress {
+  margin-top: var(--space-4);
+  font-variant-numeric: tabular-nums;
+}
+.cloud-progress-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.cloud-progress progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent);
+}
+.cloud-progress .cloud-review dd {
+  overflow-wrap: anywhere;
+}

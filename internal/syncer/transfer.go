@@ -31,6 +31,7 @@ const maxDelete = "5000"
 type Runner func(context.Context, Account, []string, func() error) ([]byte, error)
 
 func (e *Engine) run(ctx context.Context, a Account, args []string, check func() error) ([]byte, error) {
+	setProgressPhase(ctx, commandPhase(args))
 	if e.Runner != nil {
 		return e.Runner(ctx, a, args, check)
 	}
@@ -66,6 +67,10 @@ func (e *Engine) runProcess(ctx context.Context, a Account, args []string, check
 	}
 	defer cleanup()
 	argv := []string{"--config", config, "--cache-dir", filepath.Join(e.Root, "cache"), "--contimeout", "15s", "--timeout", "60s", "--retries", "1", "--low-level-retries", "2", "--drive-skip-gdocs", "--drive-skip-shortcuts"}
+	progress := progressFrom(ctx)
+	if progress != nil {
+		argv = append(argv, "--use-json-log", "--stats", "1s", "--stats-log-level", "NOTICE")
+	}
 	argv = append(argv, args...)
 	cmd := exec.Command("rclone", argv...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -73,11 +78,22 @@ func (e *Engine) runProcess(ctx context.Context, a Account, args []string, check
 	logs := &limitedBuffer{limit: 4 << 20}
 	cmd.Stdout = out
 	cmd.Stderr = logs
+	var stream *progressLog
+	if progress != nil {
+		stream = &progressLog{progress: progress, logs: logs}
+		cmd.Stderr = stream
+	}
 	if err := cmd.Start(); err != nil {
 		return nil, problem("Cannot start rclone. Check that the module dependencies are installed.")
 	}
 	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
+	go func() {
+		err := cmd.Wait()
+		if stream != nil {
+			stream.flush()
+		}
+		done <- err
+	}()
 	stop := func() {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 		select {
@@ -156,12 +172,15 @@ func transferFailure(log string) error {
 	}
 }
 func (e *Engine) runTask(ctx context.Context, t Task) error {
+	ctx, finish := e.startProgress(ctx, t.ID)
+	defer finish()
 	release, lockErr := maintenance.Acquire()
 	if lockErr != nil {
 		return lockErr
 	}
 	defer release()
 	if t.Direction == "github" {
+		setProgressPhase(ctx, "repository")
 		return e.runRepositoryTask(ctx, t)
 	}
 	if !e.originalVolume(t) {
@@ -293,6 +312,7 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 	if err != nil {
 		return err
 	}
+	setProgressPhase(ctx, "finishing")
 	if _, err = e.DB.Exec("UPDATE tasks SET status='idle',initialized=1,snapshot=?,last_sync=?,error='',recovery='',retry_at=0,retry_count=0 WHERE id=?", snapshot, time.Now().Unix(), t.ID); err != nil {
 		return err
 	}
