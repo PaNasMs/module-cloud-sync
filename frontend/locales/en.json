@@ -181,8 +181,10 @@
   "minutes": "min",
   "perSecond": "/s",
   "progressStale": "Progress has not updated; showing the last observation",
-  "progressStageHelp": "Counters and estimates describe the current stage. Totals may grow while files are discovered.",
+  "progressStageHelp": "The total amount of work is not known yet. Counters show work completed in this stage.",
   "progress_rebuilding": "Rebuilding synchronization history…",
   "lockActive": "Another synchronization process still holds this task's lock. The task will retry automatically after it exits.",
-  "lockUnknown": "The synchronization lock could not be verified. The task is paused to protect both folders; check the lock before retrying."
+  "lockUnknown": "The synchronization lock could not be verified. The task is paused to protect both folders; check the lock before retrying.",
+  "progressCheckedBytes": "Read for verification",
+  "progressPhaseHelp": "This stage is running. Its total work and completion time are not known yet."
 }
