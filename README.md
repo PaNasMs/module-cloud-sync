@@ -137,8 +137,9 @@ You can pause and resume a task, run it now, remove it and view its history.
 Removing a task or a connection leaves the synchronized files in place. Each
 user's worker runs one synchronization at a time; new tasks wait for the current
 transfer. You can add accounts, browse cloud folders and create tasks while a
-transfer runs, but you must pause transfers before reconnecting or removing an
-existing account.
+transfer runs. Reconnecting or removing an account is blocked only while that
+account is in use; transfers and checks for other accounts continue. Pause that
+account’s tasks and wait for its current operation to finish before reconnecting.
 
 Local changes are picked up through inotify, including new subdirectories. Cloud
 changes are polled with a change cursor and backoff, so an unchanged account does
@@ -309,3 +310,10 @@ is a separately installed dependency.
 Repository updates take an exclusive advisory lock on the repository directory,
 shared with Files 0.3.16+ branch switching. A busy repository is retried through
 the normal error handling. External command-line Git does not take this lock.
+
+Interrupted bisync runs recover automatically when their lock contains a PID that
+no longer exists. The old lock and history are retained in the archived recovery
+directory; local changes are backed up before rebuilding history from the cloud.
+A live PID (including a reused PID) or inaccessible process is never treated as
+stale based on elapsed time. Live locks retry with backoff; unreadable or unknown
+lock formats pause the task for inspection. A manual pause cancels automatic retry.

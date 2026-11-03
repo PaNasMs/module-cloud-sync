@@ -23,10 +23,15 @@ func (e *Engine) Action(ctx context.Context, p map[string]any) (any, error) {
 	defer e.actionMu.Unlock()
 	// Replacing or removing credentials must not race the worker using them.
 	if kind == "account.remove" || kind == "account.save" && str(p, "id") != "" {
-		if !e.cloudMu.TryLock() {
-			return nil, problem("A transfer is running. Pause it before reconnecting or removing an existing account.")
+		id := str(p, "id")
+		if _, err := e.account(id); err != nil {
+			return nil, problem("Account not found")
 		}
-		defer e.cloudMu.Unlock()
+		lock := e.accountLock(id)
+		if !lock.TryLock() {
+			return nil, problem("This account is busy. Pause its tasks and wait for its current operation to finish before reconnecting or removing it.")
+		}
+		defer lock.Unlock()
 		return e.cloudAction(ctx, p)
 	}
 	// Setup uses its own token cache and rclone configs while transfers keep running.
@@ -61,7 +66,7 @@ func (e *Engine) cloudAction(ctx context.Context, p map[string]any) (any, error)
 		if _, err := e.DB.Exec("DELETE FROM accounts WHERE id=?", id); err != nil {
 			return nil, err
 		}
-		delete(e.tokens, id)
+		e.deleteToken(id)
 		for _, root := range []string{e.Root, e.Runtime} {
 			if err := os.Remove(filepath.Join(root, id+".conf")); err != nil && !os.IsNotExist(err) {
 				return nil, err
@@ -142,7 +147,8 @@ func (e *Engine) cloudAction(ctx context.Context, p map[string]any) (any, error)
 		if _, err = e.ensure(ctx, a, true); err != nil {
 			return nil, err
 		}
-		if a.Provider == "drive" && direction != "download" && e.tokens[a.ID].Access.Scope != "https://www.googleapis.com/auth/drive" {
+		cached, _ := e.cachedToken(a.ID)
+		if a.Provider == "drive" && direction != "download" && cached.Access.Scope != "https://www.googleapis.com/auth/drive" {
 			return nil, problem("This permission is read-only. Authorize full Drive access before uploading.")
 		}
 		if _, _, err = e.listing(ctx, a, remote); err != nil {

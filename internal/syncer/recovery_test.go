@@ -68,11 +68,31 @@ func TestRealRcloneCloudAuthoritativeRecovery(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	write(work, "interrupted.lck", deadPID(t))
+	task.Initialized = 1
+	if err := e.runTask(context.Background(), task); safeError(err) != recoveryMessage {
+		t.Fatal("stale lock did not request safe recovery", err)
+	}
+	e.pauseError(task.ID, problem(recoveryMessage))
+	tasks, err := e.tasks()
+	if err != nil || tasks[0].Recovery != "history" || tasks[0].RetryAt == 0 {
+		t.Fatal("missing automatic retry", tasks, err)
+	}
+	if _, err := e.taskAction("task.resume", task.ID); err != nil {
+		t.Fatal(err)
+	}
 	task.Initialized = 1
 	task.Recovery = "history"
 	if err := e.runTask(context.Background(), task); err != nil {
 		log, _ := os.ReadFile(filepath.Join(e.Root, accountID+".last-error.log"))
 		t.Fatalf("%v\n%s", err, log)
+	}
+	archived, _ := filepath.Glob(work + ".before-recovery-*/interrupted.lck")
+	if len(archived) != 1 {
+		t.Fatal("old lock/history were not retained", archived)
+	}
+	if _, err := os.Stat(filepath.Join(work, "interrupted.lck")); !os.IsNotExist(err) {
+		t.Fatal("recovered task still locked", err)
 	}
 	read(task.Local, "changed", "cloud version")
 	read(task.Remote, "changed", "cloud version")

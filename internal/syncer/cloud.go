@@ -45,13 +45,13 @@ func (e *Engine) ensure(ctx context.Context, a Account, force bool) (bool, error
 	if a.Grant == "" || !validGrant(a.Grant) || a.Owner != e.Owner {
 		return false, &Failure{"Reconnect this account to grant cloud file access", true}
 	}
-	old, ok := e.tokens[a.ID]
+	old, ok := e.cachedToken(a.ID)
 	if !force && ok && time.Since(old.Checked) < 30*time.Second && old.Access.ExpiresAt.After(time.Now().Add(10*time.Second)) {
 		return false, nil
 	}
 	access, err := e.Broker(ctx, a.Grant)
 	if err != nil {
-		delete(e.tokens, a.ID)
+		e.deleteToken(a.ID)
 		_ = os.Remove(e.config(a))
 		var failure *external.Error
 		if errors.As(err, &failure) && (failure.Status == 403 || failure.Status == 409) {
@@ -63,7 +63,7 @@ func (e *Engine) ensure(ctx context.Context, a Account, force bool) (bool, error
 		return false, problem("Cloud access service returned an invalid token.")
 	}
 	if !scopeAllowed(a.Provider, access.Scope) {
-		delete(e.tokens, a.ID)
+		e.deleteToken(a.ID)
 		_ = os.Remove(e.config(a))
 		return false, &Failure{"Cloud permission belongs to another provider or lacks file access", true}
 	}
@@ -74,14 +74,15 @@ func (e *Engine) ensure(ctx context.Context, a Account, force bool) (bool, error
 			return false, err
 		}
 	}
-	e.tokens[a.ID] = lease{access, time.Now()}
+	e.cacheToken(a.ID, lease{access, time.Now()})
 	return ok && changed, nil
 }
 func (e *Engine) token(ctx context.Context, a Account) (string, error) {
 	if _, err := e.ensure(ctx, a, false); err != nil {
 		return "", err
 	}
-	return e.tokens[a.ID].Access.AccessToken, nil
+	token, _ := e.cachedToken(a.ID)
+	return token.Access.AccessToken, nil
 }
 func (e *Engine) api(ctx context.Context, a Account, address string, body any) (map[string]any, error) {
 	token, err := e.token(ctx, a)
@@ -262,15 +263,15 @@ func (e *Engine) saveAccount(ctx context.Context, p map[string]any) (any, error)
 			return nil, problem("Reconnect using your own linked account")
 		}
 	}
-	oldToken, hadToken := e.tokens[id]
+	oldToken, hadToken := e.cachedToken(id)
 	oldConfig, oldErr := os.ReadFile(e.config(a))
 	committed := false
 	defer func() {
 		if !committed {
 			if hadToken {
-				e.tokens[id] = oldToken
+				e.cacheToken(id, oldToken)
 			} else {
-				delete(e.tokens, id)
+				e.deleteToken(id)
 			}
 			if oldErr == nil {
 				_ = atomicFile(e.config(a), oldConfig)
@@ -279,7 +280,7 @@ func (e *Engine) saveAccount(ctx context.Context, p map[string]any) (any, error)
 			}
 		}
 	}()
-	delete(e.tokens, id)
+	e.deleteToken(id)
 	if _, err = e.ensure(ctx, a, true); err != nil {
 		return nil, err
 	}

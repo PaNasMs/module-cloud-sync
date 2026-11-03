@@ -101,6 +101,9 @@ type Engine struct {
 	Root, Runtime, Owner string
 	Broker               Broker
 	cloudMu              sync.Mutex
+	accountsMu           sync.Mutex
+	accountLocks         map[string]*sync.Mutex
+	tokensMu             sync.Mutex
 	actionMu             sync.Mutex
 	tokens               map[string]lease
 	HTTP                 HTTPClient
