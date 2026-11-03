@@ -69,7 +69,7 @@
   },
   {
     "key": "server17",
-    "en": "A transfer is running. Pause it before reconnecting or removing an existing account."
+    "en": "This account is busy. Pause its tasks and wait for its current operation to finish before reconnecting or removing it."
   },
   {
     "key": "server18",
@@ -258,5 +258,13 @@
   {
     "key": "gitServer16",
     "en": "The local branch cannot fast-forward. Local files and previous remote history were preserved."
+  },
+  {
+    "key": "lockActive",
+    "en": "Another synchronization process still holds this task's lock. The task will retry automatically after it exits."
+  },
+  {
+    "key": "lockUnknown",
+    "en": "The synchronization lock could not be verified. The task is paused to protect both folders; check the lock before retrying."
   }
 ]

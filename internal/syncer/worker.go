@@ -140,6 +140,92 @@ func (e *Engine) recoverVolumes() {
 	}
 }
 
+func (e *Engine) pollAccount(ctx context.Context, account Account, tasks []Task, next map[string]time.Time, failures map[string]int) (blocked bool) {
+	lock := e.accountLock(account.ID)
+	if !lock.TryLock() {
+		return true
+	}
+	defer lock.Unlock()
+	a, err := e.account(account.ID)
+	if err != nil {
+		return true
+	}
+	if a.Provider == "github" {
+		return
+	}
+	needed := false
+	for _, t := range tasks {
+		needed = needed || (t.Account == a.ID && t.Paused == 0)
+	}
+	if time.Now().Before(next[a.ID]) {
+		blocked = a.Error != ""
+		return
+	}
+	pollCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	_, err = e.ensure(pollCtx, a, true)
+	cursor := a.Cursor
+	changed := false
+	if err == nil && needed {
+		cursor, changed, err = e.poll(pollCtx, a)
+	}
+	dirty := []string{}
+	if err == nil && changed {
+		for _, t := range tasks {
+			if t.Account != a.ID || t.Paused != 0 {
+				continue
+			}
+			var snapshot string
+			snapshot, _, err = e.listing(pollCtx, a, t.Remote)
+			if err != nil {
+				break
+			}
+			if snapshot != t.Snapshot {
+				dirty = append(dirty, t.ID)
+			}
+		}
+	}
+	cancel()
+	if err != nil {
+		blocked = true
+		failures[a.ID]++
+		delay := 60 * time.Second * time.Duration(1<<min(failures[a.ID], 5))
+		next[a.ID] = time.Now().Add(min(delay, 30*time.Minute))
+		_, _ = e.DB.Exec("UPDATE accounts SET error=? WHERE id=?", safeError(err), a.ID)
+		var f *Failure
+		if errors.As(err, &f) && f.Reconnect {
+			for _, t := range tasks {
+				if t.Account == a.ID && t.Paused == 0 {
+					e.pauseError(t.ID, err)
+				}
+			}
+		}
+		return
+	}
+	tx, err := e.DB.Begin()
+	if err != nil {
+		return
+	}
+	if _, err = tx.Exec("UPDATE accounts SET cursor=?,error='' WHERE id=?", cursor, a.ID); err == nil {
+		for _, id := range dirty {
+			if _, err = tx.Exec("UPDATE tasks SET dirty=1 WHERE id=?", id); err != nil {
+				break
+			}
+		}
+	}
+	if err != nil {
+		_ = tx.Rollback()
+		blocked = true
+		return
+	}
+	if err = tx.Commit(); err != nil {
+		blocked = true
+		return
+	}
+	failures[a.ID] = 0
+	next[a.ID] = time.Now().Add(time.Minute)
+	return
+}
+
 func (e *Engine) cycle(ctx context.Context, next map[string]time.Time, failures map[string]int, busy func(bool)) {
 	if !e.cloudMu.TryLock() {
 		return
@@ -157,79 +243,7 @@ func (e *Engine) cycle(ctx context.Context, next map[string]time.Time, failures 
 	}
 	blocked := map[string]bool{}
 	for _, a := range accounts {
-		if a.Provider == "github" {
-			continue
-		}
-		needed := false
-		for _, t := range tasks {
-			needed = needed || (t.Account == a.ID && t.Paused == 0)
-		}
-		if time.Now().Before(next[a.ID]) {
-			blocked[a.ID] = a.Error != ""
-			continue
-		}
-		pollCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-		_, err = e.ensure(pollCtx, a, true)
-		cursor := a.Cursor
-		changed := false
-		if err == nil && needed {
-			cursor, changed, err = e.poll(pollCtx, a)
-		}
-		dirty := []string{}
-		if err == nil && changed {
-			for _, t := range tasks {
-				if t.Account != a.ID || t.Paused != 0 {
-					continue
-				}
-				var snapshot string
-				snapshot, _, err = e.listing(pollCtx, a, t.Remote)
-				if err != nil {
-					break
-				}
-				if snapshot != t.Snapshot {
-					dirty = append(dirty, t.ID)
-				}
-			}
-		}
-		cancel()
-		if err != nil {
-			blocked[a.ID] = true
-			failures[a.ID]++
-			delay := 60 * time.Second * time.Duration(1<<min(failures[a.ID], 5))
-			next[a.ID] = time.Now().Add(min(delay, 30*time.Minute))
-			_, _ = e.DB.Exec("UPDATE accounts SET error=? WHERE id=?", safeError(err), a.ID)
-			var f *Failure
-			if errors.As(err, &f) && f.Reconnect {
-				for _, t := range tasks {
-					if t.Account == a.ID && t.Paused == 0 {
-						e.pauseError(t.ID, err)
-					}
-				}
-			}
-			continue
-		}
-		tx, err := e.DB.Begin()
-		if err != nil {
-			continue
-		}
-		if _, err = tx.Exec("UPDATE accounts SET cursor=?,error='' WHERE id=?", cursor, a.ID); err == nil {
-			for _, id := range dirty {
-				if _, err = tx.Exec("UPDATE tasks SET dirty=1 WHERE id=?", id); err != nil {
-					break
-				}
-			}
-		}
-		if err != nil {
-			_ = tx.Rollback()
-			blocked[a.ID] = true
-			continue
-		}
-		if err = tx.Commit(); err != nil {
-			blocked[a.ID] = true
-			continue
-		}
-		failures[a.ID] = 0
-		next[a.ID] = time.Now().Add(time.Minute)
+		blocked[a.ID] = e.pollAccount(ctx, a, tasks, next, failures)
 	}
 	_ = e.scheduleRepositories(time.Now())
 	tasks, err = e.tasks()
@@ -240,13 +254,18 @@ func (e *Engine) cycle(ctx context.Context, next map[string]time.Time, failures 
 		if t.Paused != 0 || t.Dirty == 0 || t.Status == "error" || blocked[t.Account] {
 			continue
 		}
+		lock := e.accountLock(t.Account)
+		if !lock.TryLock() {
+			continue
+		}
+		defer lock.Unlock()
 		r, err := e.DB.Exec("UPDATE tasks SET status='running',dirty=0,error='' WHERE id=? AND paused=0 AND dirty=1 AND status!='error'", t.ID)
 		if err != nil {
 			return
 		}
 		n, _ := r.RowsAffected()
 		if n == 0 {
-			continue
+			return
 		}
 		busy(true)
 		err = e.runTask(ctx, t)

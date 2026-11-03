@@ -115,7 +115,7 @@ func (e *Engine) runProcess(ctx context.Context, a Account, args []string, check
 			}
 			if err != nil {
 				diagnostic := redactTransferLog(logs.b.String())
-				if token, ok := e.tokens[a.ID]; ok && token.Access.AccessToken != "" {
+				if token, ok := e.cachedToken(a.ID); ok && token.Access.AccessToken != "" {
 					diagnostic = strings.ReplaceAll(diagnostic, token.Access.AccessToken, "[redacted]")
 				}
 				_ = atomicFile(filepath.Join(e.Root, a.ID+".last-error.log"), []byte(diagnostic))
@@ -195,6 +195,8 @@ func redactTransferLog(text string) string {
 func transferFailure(log string) error {
 	text := strings.ToLower(log)
 	switch {
+	case strings.Contains(text, "prior lock file found"):
+		return problem(activeLockMessage)
 	case strings.Contains(text, "max-delete"), strings.Contains(text, "all files were changed"), strings.Contains(text, "too many deletes"):
 		return problem("Safety check stopped the task: too many files changed or were deleted. Review both folders before retrying.")
 	case strings.Contains(text, "must run --resync"), strings.Contains(text, "cannot find prior"), strings.Contains(text, "run --resync to recover"), strings.Contains(text, "differences found") && strings.Contains(text, "failed to check"):
@@ -225,6 +227,16 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 	if _, err := e.Local(t.Local); err != nil {
 		return err
 	}
+	work := filepath.Join(e.Root, "tasks", t.ID)
+	if t.Direction == "both" {
+		stale, err := bisyncLocks(work)
+		if err != nil {
+			return err
+		}
+		if stale && t.Recovery != "history" {
+			return problem(recoveryMessage)
+		}
+	}
 	a, err := e.account(t.Account)
 	if err != nil {
 		return err
@@ -239,7 +251,6 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 		return err
 	}
 	target := "cloud:" + t.Remote
-	work := filepath.Join(e.Root, "tasks", t.ID)
 	if err = os.MkdirAll(work, 0700); err != nil {
 		return err
 	}
@@ -250,6 +261,11 @@ func (e *Engine) runTask(ctx context.Context, t Task) error {
 		}
 		if paused != 0 {
 			return errPaused
+		}
+		if t.Direction == "both" && (t.Initialized < 0 || t.Recovery == "history") {
+			if _, err := bisyncLocks(work); err != nil {
+				return err
+			}
 		}
 		if !e.originalVolume(t) {
 			return problem("Local volume changed or is unavailable; reconnect the original volume")

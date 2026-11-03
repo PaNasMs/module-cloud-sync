@@ -51,7 +51,8 @@ func (e *Engine) refreshConfig(ctx context.Context, a Account) (string, func(), 
 		return "", nil, err
 	}
 	cleanup := func() { server.Close(); os.Remove(file.Name()) }
-	access := e.tokens[a.ID].Access
+	cached, _ := e.cachedToken(a.ID)
+	access := cached.Access
 	token := map[string]any{"access_token": access.AccessToken, "token_type": "Bearer", "expiry": access.ExpiresAt, "refresh_token": secret}
 	_, err = file.WriteString("[cloud]\ntype = " + a.Provider + "\ntoken_url = http://" + l.Addr().String() + "/\ntoken = " + marshal(token) + "\n")
 	closeErr := file.Close()

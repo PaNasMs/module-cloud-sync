@@ -67,7 +67,7 @@
   "server14": "Reconnect using the same cloud account",
   "server15": "Remove tasks before disconnecting this account",
   "server16": "Pause the task and wait for the transfer to stop",
-  "server17": "A transfer is running. Pause it before reconnecting or removing an existing account.",
+  "server17": "This account is busy. Pause its tasks and wait for its current operation to finish before reconnecting or removing it.",
   "server18": "Transfer interrupted; review before resuming.",
   "server19": "Cloud check failed; retrying later.",
   "server20": "Synchronization failed; review before retrying.",
@@ -182,5 +182,7 @@
   "perSecond": "/s",
   "progressStale": "Progress has not updated; showing the last observation",
   "progressStageHelp": "Counters and estimates describe the current stage. Totals may grow while files are discovered.",
-  "progress_rebuilding": "Rebuilding synchronization history…"
+  "progress_rebuilding": "Rebuilding synchronization history…",
+  "lockActive": "Another synchronization process still holds this task's lock. The task will retry automatically after it exits.",
+  "lockUnknown": "The synchronization lock could not be verified. The task is paused to protect both folders; check the lock before retrying."
 }
