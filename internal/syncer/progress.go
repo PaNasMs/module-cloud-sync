@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"slices"
 	"sync"
 	"time"
 )
@@ -88,6 +89,9 @@ func commandPhase(args []string) string {
 		case "copy", "copyto", "sync":
 			return "transferring"
 		case "bisync":
+			if slices.Contains(args, "--dry-run") {
+				return "rebuilding"
+			}
 			return "comparing"
 		}
 	}

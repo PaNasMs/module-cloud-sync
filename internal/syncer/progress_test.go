@@ -162,3 +162,19 @@ func TestProgressAgeUsesServerElapsedTime(t *testing.T) {
 		t.Fatal(tasks[0].Progress)
 	}
 }
+
+func TestHistoryDryRunDoesNotReportTransfers(t *testing.T) {
+	phase := commandPhase([]string{"bisync", "local", "cloud:", "--resync", "--dry-run"})
+	if phase != "rebuilding" {
+		t.Fatal(phase)
+	}
+	e := &Engine{}
+	ctx, finish := e.startProgress(context.Background(), "task")
+	defer finish()
+	setProgressPhase(ctx, phase)
+	w := &progressLog{progress: progressFrom(ctx), logs: &limitedBuffer{limit: 1024}}
+	w.Write([]byte("{\"stats\":{\"bytes\":0,\"totalBytes\":100}}\n"))
+	if w.progress.value.Phase != "rebuilding" {
+		t.Fatal(w.progress.value)
+	}
+}

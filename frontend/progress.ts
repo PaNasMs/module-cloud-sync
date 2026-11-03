@@ -18,7 +18,7 @@ export function progressView(p: SyncProgress, disconnected: boolean, now: number
   const checking = p.phase === "checking" || p.phase === "comparing";
   const done = checking ? p.checks : p.bytes;
   const total = checking ? p.totalChecks : p.totalBytes;
-  const percent = !stale && p.measured && total > 0
+  const percent = (checking || p.phase === "transferring") && !stale && p.measured && total > 0
     ? Math.min(99, Math.max(0, Math.floor(done / total * 100)))
     : undefined;
   const eta = !stale && p.measured && p.phase === "transferring" && p.speed > 0 &&

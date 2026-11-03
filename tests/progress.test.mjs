@@ -30,3 +30,8 @@ test('server clock skew does not affect freshness; server age still counts', () 
     assert.equal(progressView({...p,observedAt:p.observedAt+skew,ageSeconds:5},false,now+6000,now).stale,true);
   }
 });
+
+test('history rebuilding does not claim transfer progress', () => {
+  const view = progressView({...p,phase:'rebuilding'},false,now,now);
+  assert.equal(view.percent,undefined);assert.equal(view.eta,undefined);
+});

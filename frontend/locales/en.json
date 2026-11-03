@@ -181,5 +181,6 @@
   "minutes": "min",
   "perSecond": "/s",
   "progressStale": "Progress has not updated; showing the last observation",
-  "progressStageHelp": "Counters and estimates describe the current stage. Totals may grow while files are discovered."
+  "progressStageHelp": "Counters and estimates describe the current stage. Totals may grow while files are discovered.",
+  "progress_rebuilding": "Rebuilding synchronization history…"
 }
