@@ -40,6 +40,8 @@ import en from "./locales/en.json";
 import ru from "./locales/ru.json";
 import uk from "./locales/uk.json";
 import "./cloud-sync.css";
+import { formatBytes, progressView } from "./progress";
+import type { SyncProgress } from "./progress";
 registerTranslations("cloud-sync", { en, ru, uk });
 registerServerMessages("cloud-sync", messages);
 const tr = translator("cloud-sync");
@@ -51,6 +53,7 @@ type Account = {
   error: string;
 };
 type Task = {
+  progress?: SyncProgress;
  branch?: string;
   id: string;
   account: string;
@@ -66,6 +69,7 @@ type Task = {
   last_sync: number;
 };
 const taskStatus = (task: Task) =>
+  task.paused && task.status === "running" ? "pausing" :
   task.recovery === "volume"
     ? "waitingVolume"
     : task.retry_at
@@ -335,12 +339,41 @@ function LocalFolderTree({
     </div>
   );
 }
+function TaskProgress({ task, disconnected, fetchedAt }: { task: Task; disconnected: boolean; fetchedAt: number }) {
+  const p = task.progress;
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 2000);
+    return () => clearInterval(timer);
+  }, []);
+  if (task.status !== "running") return null;
+  const view = p ? progressView(p, disconnected, now, fetchedAt) : undefined;
+  const phase = task.paused ? "pausing" : p ? `progress_${p.phase}` : "running";
+  const percent = task.paused ? undefined : view?.percent;
+  return <div className="cloud-progress">
+    <div className="cloud-progress-heading">
+      <span role="status">{tr(phase)}</span>
+      {percent !== undefined && <span>{percent}%</span>}
+    </div>
+    {!task.paused && !view?.stale && <progress max={100} value={percent} aria-label={`${task.name}: ${tr(phase)}`} />}
+    {p?.measured && <dl className="cloud-review">
+      {p.phase === "transferring" && <>
+        <dt>{tr("progressBytes")}</dt><dd>{formatBytes(p.bytes)}{p.totalBytes > 0 && ` / ${formatBytes(p.totalBytes)}`}</dd>
+        <dt>{tr("progressFiles")}</dt><dd>{p.transfers.toLocaleString()}{p.totalTransfers > 0 && ` / ${p.totalTransfers.toLocaleString()}`}</dd>
+        {!task.paused && !view?.stale && <><dt>{tr("progressSpeed")}</dt><dd>{formatBytes(p.speed)}{tr("perSecond")}</dd></>}
+      </>}
+      <dt>{tr("progressChecks")}</dt><dd>{p.checks.toLocaleString()}{p.totalChecks > 0 && ` / ${p.totalChecks.toLocaleString()}`}</dd>
+      {!task.paused && view?.eta !== undefined && <><dt>{tr("progressETA")}</dt><dd>{Math.ceil(view.eta / 60).toLocaleString()} {tr("minutes")}</dd></>}
+    </dl>}
+    {view?.stale ? <p className="muted">{tr("progressStale")} · {new Date(p!.observedAt * 1000).toLocaleTimeString()}</p> : <p className="muted">{tr("progressStageHelp")}</p>}
+  </div>;
+}
 export function CloudSyncPage() {
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ["cloud-sync"],
     queryFn: () => api<State>(),
-    refetchInterval: 3000,
+    refetchInterval: 2000,
   });
   const state = query.data ?? empty;
   const [accountID, setAccountID] = useQueryValue("account");
@@ -700,6 +733,7 @@ export function CloudSyncPage() {
                             : tr("notYet")}
                         </dd>
                       </dl>
+                      <TaskProgress task={selectedTask} disconnected={query.isError} fetchedAt={query.dataUpdatedAt} />
                       {selectedTask.error && (
                         <Notice error>{selectedTask.error}</Notice>
                       )}

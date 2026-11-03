@@ -26,24 +26,25 @@ type Account struct {
 	Owner    string `json:"-"`
 }
 type Task struct {
-	Branch      string `json:"branch,omitempty"`
-	ID          string `json:"id"`
-	Account     string `json:"account"`
-	Name        string `json:"name"`
-	Local       string `json:"local"`
-	Remote      string `json:"remote"`
-	Direction   string `json:"direction"`
-	Mount       string `json:"mount"`
-	Recovery    string `json:"recovery"`
-	Paused      int    `json:"paused"`
-	Status      string `json:"status"`
-	Dirty       int    `json:"dirty"`
-	Initialized int    `json:"initialized"`
-	Snapshot    string `json:"snapshot"`
-	Error       string `json:"error"`
-	LastSync    int64  `json:"last_sync"`
-	RetryAt     int64  `json:"retry_at"`
-	RetryCount  int    `json:"retry_count"`
+	Progress    *Progress `json:"progress,omitempty"`
+	Branch      string    `json:"branch,omitempty"`
+	ID          string    `json:"id"`
+	Account     string    `json:"account"`
+	Name        string    `json:"name"`
+	Local       string    `json:"local"`
+	Remote      string    `json:"remote"`
+	Direction   string    `json:"direction"`
+	Mount       string    `json:"mount"`
+	Recovery    string    `json:"recovery"`
+	Paused      int       `json:"paused"`
+	Status      string    `json:"status"`
+	Dirty       int       `json:"dirty"`
+	Initialized int       `json:"initialized"`
+	Snapshot    string    `json:"snapshot"`
+	Error       string    `json:"error"`
+	LastSync    int64     `json:"last_sync"`
+	RetryAt     int64     `json:"retry_at"`
+	RetryCount  int       `json:"retry_count"`
 }
 type History struct {
 	ID      int64  `json:"id"`
@@ -94,6 +95,8 @@ func validGrant(s string) bool {
 }
 
 type Engine struct {
+	progressMu           sync.Mutex
+	progress             *taskProgress
 	DB                   *sql.DB
 	Root, Runtime, Owner string
 	Broker               Broker
@@ -256,6 +259,7 @@ func (e *Engine) State() (State, error) {
 	if err != nil {
 		return s, err
 	}
+	e.attachProgress(s.Tasks)
 	rows, err := e.DB.Query("SELECT id,COALESCE(task,''),at,kind,message FROM history ORDER BY id DESC LIMIT 100")
 	if err != nil {
 		return s, err
