@@ -27,9 +27,13 @@ func bisyncLocks(work string) (bool, error) {
 			return false, problem(unknownLockMessage)
 		}
 		info, statErr := file.Stat()
+		if statErr != nil || !info.Mode().IsRegular() {
+			file.Close()
+			return false, problem(unknownLockMessage)
+		}
 		raw, readErr := io.ReadAll(io.LimitReader(file, 65))
 		file.Close()
-		if statErr != nil || !info.Mode().IsRegular() || readErr != nil || len(raw) > 64 {
+		if readErr != nil || len(raw) > 64 {
 			return false, problem(unknownLockMessage)
 		}
 		pid, err := strconv.ParseInt(strings.TrimSpace(string(raw)), 10, 32)

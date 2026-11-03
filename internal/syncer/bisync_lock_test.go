@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -77,5 +78,26 @@ func TestActiveBisyncLockBlocksRecovery(t *testing.T) {
 	err := e.runTask(context.Background(), task)
 	if safeError(err) != activeLockMessage || recoveryKind(err) != "retry" {
 		t.Fatal(err)
+	}
+}
+
+func TestNonRegularBisyncLocks(t *testing.T) {
+	for _, kind := range []string{"directory", "fifo"} {
+		t.Run(kind, func(t *testing.T) {
+			work := t.TempDir()
+			path := filepath.Join(work, "run.lck")
+			var err error
+			if kind == "directory" {
+				err = os.Mkdir(path, 0700)
+			} else {
+				err = syscall.Mkfifo(path, 0600)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := bisyncLocks(work); safeError(err) != unknownLockMessage {
+				t.Fatal(err)
+			}
+		})
 	}
 }
