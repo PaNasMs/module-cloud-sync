@@ -69,24 +69,24 @@ func TestRealRcloneCloudAuthoritativeRecovery(t *testing.T) {
 		}
 	}
 	write(work, "interrupted.lck", deadPID(t))
-	task.Initialized = 1
-	if err := e.runTask(context.Background(), task); safeError(err) != recoveryMessage {
-		t.Fatal("stale lock did not request safe recovery", err)
-	}
-	e.pauseError(task.ID, problem(recoveryMessage))
+
+	next := map[string]time.Time{accountID: time.Now().Add(time.Hour)}
+	e.cycle(context.Background(), next, map[string]int{}, func(bool) {})
 	tasks, err := e.tasks()
-	if err != nil || tasks[0].Recovery != "history" || tasks[0].RetryAt == 0 {
-		t.Fatal("missing automatic retry", tasks, err)
+	if err != nil || tasks[0].Recovery != "history" || tasks[0].RetryAt == 0 || tasks[0].Paused != 1 {
+		t.Fatal("missing automatic recovery after stale lock", tasks, err)
 	}
-	if _, err := e.taskAction("task.resume", task.ID); err != nil {
+	// Advance the persisted retry deadline instead of waiting for the backoff.
+	if _, err := e.DB.Exec("UPDATE tasks SET retry_at=1 WHERE id=?", task.ID); err != nil {
 		t.Fatal(err)
 	}
-	task.Initialized = 1
-	task.Recovery = "history"
-	if err := e.runTask(context.Background(), task); err != nil {
+	e.cycle(context.Background(), next, map[string]int{}, func(bool) {})
+	tasks, err = e.tasks()
+	if err != nil || tasks[0].Status != "idle" || tasks[0].Recovery != "" || tasks[0].Paused != 0 {
 		log, _ := os.ReadFile(filepath.Join(e.Root, accountID+".last-error.log"))
-		t.Fatalf("%v\n%s", err, log)
+		t.Fatalf("automatic recovery failed: %+v %v %s", tasks, err, log)
 	}
+	task.Initialized = 1
 	archived, _ := filepath.Glob(work + ".before-recovery-*/interrupted.lck")
 	if len(archived) != 1 {
 		t.Fatal("old lock/history were not retained", archived)
