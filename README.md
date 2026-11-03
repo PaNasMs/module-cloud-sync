@@ -122,15 +122,15 @@ folders, the direction, the state, account actions and history on one page, and
 its ID is kept in the `sync` URL parameter. Connections without tasks are listed
 separately so you can add a task or remove them.
 
-Running tasks show their current phase. Google Drive and Dropbox transfers report
-bytes, files, speed and an estimated remaining time when rclone knows them;
-content verification reports checked files. Counters and percentages belong to
-the current stage, not the whole multi-stage run. Totals can grow during discovery.
-Unknown totals use an indeterminate indicator, and a running stage never claims
-100% completion. GitHub tasks show a named phase without a fabricated percentage.
+Running tasks show a named phase and an indeterminate activity indicator.
+Google Drive and Dropbox show completed file and byte counts, plus current speed
+for transfers and content verification. Counts describe the current stage and
+can reset when the next stage starts. rclone totals grow while more files are
+discovered, so they are not presented as final totals, percentages or remaining
+time. GitHub tasks show their phase without invented counters.
 Live counters refresh every two seconds and are kept in worker memory, without
 per-second database writes. Stale or disconnected samples are labelled and hide
-speed and estimates. Pausing remains pending until the process actually stops;
+live activity and speed. Pausing remains pending until the process actually stops;
 completed, failed and restarted tasks do not retain a previous run's counters.
 
 You can pause and resume a task, run it now, remove it and view its history.

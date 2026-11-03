@@ -15,16 +15,8 @@ export type SyncProgress = {
 
 export function progressView(p: SyncProgress, disconnected: boolean, now: number, fetchedAt: number) {
   const stale = disconnected || (p.measured && p.ageSeconds + Math.max(0, now - fetchedAt) / 1000 > 10);
-  const checking = p.phase === "checking" || p.phase === "comparing";
-  const done = checking ? p.checks : p.bytes;
-  const total = checking ? p.totalChecks : p.totalBytes;
-  const percent = (checking || p.phase === "transferring") && !stale && p.measured && total > 0
-    ? Math.min(99, Math.max(0, Math.floor(done / total * 100)))
-    : undefined;
-  const eta = !stale && p.measured && p.phase === "transferring" && p.speed > 0 &&
-    p.totalBytes > p.bytes && p.eta !== null && p.eta > 0
-    ? p.eta : undefined;
-  return { stale, percent, eta };
+  // rclone totals grow during discovery; they do not establish a final denominator.
+  return { stale };
 }
 
 export function formatBytes(bytes: number) {
