@@ -437,6 +437,11 @@ func TestTransferFailureClassificationAndRedaction(t *testing.T) {
 	for _, tc := range []struct{ log, want string }{
 		{"dial tcp: connection refused", "Cloud is unreachable; retry later."},
 		{"401 Unauthorized", "Account authorization expired or access was denied. Reconnect the account."},
+		{`{"level":"error","msg":"corrupted on transfer: sizes differ 1479 vs 1874"}`, transferSizeMessage},
+		{`{"level":"error","msg":"corrupted on transfer: sizes differ 1479 vs 1874","object":"unauthorized.txt"}`, transferSizeMessage},
+		{"corrupted on transfer: sizes differ 429 vs 503", transferSizeMessage},
+		{"corrupted on transfer: sizes differ 278 vs 265\nBisync aborted. Must run --resync to recover.", recoveryMessage},
+		{"corrupted on transfer: sizes differ 278 vs 265\ntoo many deletes", "Safety check stopped the task: too many files changed or were deleted. Review both folders before retrying."},
 		{"Failed to bisync: unknown failure", "Cloud operation failed. Check account access, folder availability and quota; reconnect if necessary."},
 		{"cannot find prior Path1 or Path2 listings", recoveryMessage},
 		{"Bisync aborted. Must run --resync to recover.", recoveryMessage},

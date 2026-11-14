@@ -24,6 +24,8 @@ const legacyRecoveryMessage = "Two-way sync history requires recovery. Preserve 
 
 const recoveryMessage = "Two-way sync history will be rebuilt automatically from the cloud; local changes will be backed up."
 
+const transferSizeMessage = "A transferred file failed its size check. The task will retry automatically."
+
 // maxDelete bounds how many deletions bisync will propagate in one pass. High
 // enough to let deliberate bulk reorganizations sync through, low enough to
 // still stop a run where a side has effectively vanished.
@@ -201,6 +203,8 @@ func transferFailure(log string) error {
 		return problem("Safety check stopped the task: too many files changed or were deleted. Review both folders before retrying.")
 	case strings.Contains(text, "must run --resync"), strings.Contains(text, "cannot find prior"), strings.Contains(text, "run --resync to recover"), strings.Contains(text, "differences found") && strings.Contains(text, "failed to check"):
 		return problem(recoveryMessage)
+	case strings.Contains(text, "corrupted on transfer: sizes differ"):
+		return problem(transferSizeMessage)
 	case strings.Contains(text, "invalid_grant"), strings.Contains(text, "unauthorized"), strings.Contains(text, "invalid_access_token"):
 		return problem("Account authorization expired or access was denied. Reconnect the account.")
 	case strings.Contains(text, "429"), strings.Contains(text, "503"), strings.Contains(text, "502"), strings.Contains(text, "timeout"), strings.Contains(text, "connection refused"), strings.Contains(text, "no such host"):
