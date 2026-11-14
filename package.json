@@ -1,11 +1,12 @@
 {
   "name": "@panasms/module-cloud-sync",
   "private": true,
-  "version": "0.1.35",
+  "version": "0.1.36",
   "type": "module",
   "scripts": {
     "build": "tsc && vite build",
-    "test": "python3 scripts/check.py && node --test tests/*.test.mjs"
+    "test": "python3 scripts/check.py && node --test tests/*.test.mjs",
+    "test:accounts": "node scripts/test_accounts.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

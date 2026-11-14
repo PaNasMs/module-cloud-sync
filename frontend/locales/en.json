@@ -186,5 +186,9 @@
   "lockActive": "Another synchronization process still holds this task's lock. The task will retry automatically after it exits.",
   "lockUnknown": "The synchronization lock could not be verified. The task is paused to protect both folders; check the lock before retrying.",
   "progressCheckedBytes": "Read for verification",
-  "progressPhaseHelp": "This stage is running. Its total work and completion time are not known yet."
+  "progressPhaseHelp": "This stage is running. Its total work and completion time are not known yet.",
+  "accounts": "Accounts",
+  "taskCount": "Tasks: {{count}}",
+  "selectionUnavailable": "Selected account or task is unavailable",
+  "chooseSelection": "Choose an account or task from the navigation."
 }
