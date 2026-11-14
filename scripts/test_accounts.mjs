@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import { realpathSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const root = resolve(dirname(new URL(import.meta.url).pathname), "..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const frontend = resolve(
   process.env.FRONTEND_PACKAGE ?? resolve(root, "../../frontend/package.json"),
 );
@@ -64,7 +65,7 @@ const server = await createServer({
     host: "127.0.0.1",
     port: 15181,
     strictPort: true,
-    fs: { allow: [root, frontendRoot] },
+    fs: { allow: [root, realpathSync(root), frontendRoot] },
   },
 });
 await server.listen();
@@ -100,11 +101,15 @@ function fixtureURL({
   account,
   sync,
   other,
+  staleCache = false,
+  holdStateFetch = false,
 } = {}) {
   const params = new URLSearchParams({ lang, theme, surface });
   if (account) params.set("account", account);
   if (sync) params.set("sync", sync);
   if (other) params.set("other", other);
+  if (staleCache) params.set("fixtureStale", "1");
+  if (holdStateFetch) params.set("fixtureHoldState", "1");
   return `http://127.0.0.1:15181/tests/accounts.html?${params}`;
 }
 
@@ -202,6 +207,16 @@ async function setup(options = {}) {
         location,
       ),
     back: () => page.evaluate(() => window.cloudAccountFixture.back()),
+    holdNextAction: () =>
+      page.evaluate(() => window.cloudAccountFixture.holdNextAction()),
+    waitForHeldAction: () =>
+      page.evaluate(() => window.cloudAccountFixture.waitForHeldAction()),
+    releaseHeldAction: () =>
+      page.evaluate(() => window.cloudAccountFixture.releaseHeldAction()),
+    waitForStateFetch: () =>
+      page.evaluate(() => window.cloudAccountFixture.waitForStateFetch()),
+    releaseStateFetch: () =>
+      page.evaluate(() => window.cloudAccountFixture.releaseStateFetch()),
   };
 }
 
@@ -457,6 +472,107 @@ try {
     assert.equal(
       (await test.location()).search,
       `?account=${accountTwo}&sync=${taskTwo}&other=retain-this`,
+    );
+    await assertClean(test);
+    await test.page.close();
+  }
+
+  {
+    const test = await setup({
+      account: accountTwo,
+      sync: taskTwo,
+      other: "before-action",
+    });
+    await test.navigate(
+      `/cloud-sync?account=${accountTwo}&sync=${taskTwo}&other=during-action`,
+    );
+    const dialog = await openTaskDelete(test, taskNameTwo);
+    await test.holdNextAction();
+    await dialog
+      .getByRole("button", { name: test.text.removeTask, exact: true })
+      .click();
+    await test.waitForHeldAction();
+    await test.back();
+    assert.equal(
+      (await test.location()).search,
+      `?account=${accountTwo}&sync=${taskTwo}&other=before-action`,
+      "Back changes the current route while task removal is pending",
+    );
+    await test.releaseHeldAction();
+    await accountView(test, labelTwo);
+    assert.equal(
+      (await test.location()).search,
+      `?account=${accountTwo}&sync=account%3A${accountTwo}&other=before-action`,
+      "successful task removal selects its owner while preserving Back's latest unrelated parameters",
+    );
+    assert.deepEqual((await apiState(test)).writes[0].body, {
+      action: "task.remove",
+      id: taskTwo,
+    });
+    await assertClean(test, 1);
+    await test.page.close();
+  }
+
+  {
+    const test = await setup({ account: accountTwo, sync: taskTwo });
+    const dialog = await openTaskDelete(test, taskNameTwo);
+    await test.holdNextAction();
+    await dialog
+      .getByRole("button", { name: test.text.removeTask, exact: true })
+      .click();
+    await test.waitForHeldAction();
+    await test.navigate("/elsewhere?source=outside");
+    await expect(
+      test.page.getByRole("heading", { name: "Elsewhere", exact: true }),
+    ).toBeVisible();
+    await expect(test.page.locator(".settings-content")).toHaveCount(0);
+    assert.deepEqual(await test.location(), {
+      pathname: "/elsewhere",
+      search: "?source=outside",
+    });
+    await test.releaseHeldAction();
+    await expect
+      .poll(async () =>
+        (await apiState(test)).tasks.some((task) => task.id === taskTwo),
+      )
+      .toBe(false);
+    await expect(
+      test.page.getByRole("heading", { name: "Elsewhere", exact: true }),
+    ).toBeVisible();
+    assert.deepEqual(await test.location(), {
+      pathname: "/elsewhere",
+      search: "?source=outside",
+    });
+    await expect(test.page.locator(".settings-content")).toHaveCount(0);
+    assert.deepEqual((await apiState(test)).writes[0].body, {
+      action: "task.remove",
+      id: taskTwo,
+    });
+    await assertClean(test, 1);
+    await test.page.close();
+  }
+
+  {
+    const test = await setup({
+      account: accountTwo,
+      sync: taskTwo,
+      staleCache: true,
+      holdStateFetch: true,
+    });
+    await test.waitForStateFetch();
+    assert.equal(
+      (await test.location()).search,
+      `?account=${accountTwo}&sync=${taskTwo}`,
+      "a stale cache must not canonicalize away a requested task before the fresh fetch",
+    );
+    await test.releaseStateFetch();
+    await expect(test.page.locator(".settings-content h2").first()).toHaveText(
+      taskNameTwo,
+    );
+    assert.equal(
+      (await test.location()).search,
+      `?account=${accountTwo}&sync=${taskTwo}`,
+      "fresh state resolves and retains the requested task selection",
     );
     await assertClean(test);
     await test.page.close();

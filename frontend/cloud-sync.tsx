@@ -340,6 +340,13 @@ function LocalFolderTree({
   );
 }
 export function CloudSyncPage() {
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ["cloud-sync"],
@@ -348,6 +355,8 @@ export function CloudSyncPage() {
   });
   const state = query.data ?? empty;
   const [searchParams, setSearchParams] = useSearchParams();
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
   const accountID = searchParams.get("account") ?? "";
   const selectedID = searchParams.get("sync") ?? "";
   const accountSelection = selectedID.startsWith("account:");
@@ -361,19 +370,17 @@ export function CloudSyncPage() {
     (defaultSelection ? state.accounts[0] : undefined);
   const select = useCallback(
     (account: string, sync = account ? "account:" + account : "", replace = false) => {
-      setSearchParams((current) => {
-        const next = new URLSearchParams(current);
-        if (account) next.set("account", account);
-        else next.delete("account");
-        if (sync) next.set("sync", sync);
-        else next.delete("sync");
-        return next;
-      }, { replace });
+      const next = new URLSearchParams(searchParamsRef.current);
+      if (account) next.set("account", account);
+      else next.delete("account");
+      if (sync) next.set("sync", sync);
+      else next.delete("sync");
+      setSearchParams(next, { replace });
     },
     [setSearchParams],
   );
   useEffect(() => {
-    if (!query.isSuccess) return;
+    if (!query.isSuccess || !query.isFetchedAfterMount) return;
     if (account) {
       const sync = selectedTask?.id ?? "account:" + account.id;
       if (accountID !== account.id || selectedID !== sync)
@@ -381,7 +388,7 @@ export function CloudSyncPage() {
     } else if (!state.accounts.length && (accountID || selectedID)) {
       select("", "", true);
     }
-  }, [query.isSuccess, account?.id, selectedTask?.id, accountID, selectedID, state.accounts.length, select]);
+  }, [query.isSuccess, query.isFetchedAfterMount, account?.id, selectedTask?.id, accountID, selectedID, state.accounts.length, select]);
   const [dialog, setDialog] = useState<"account" | "task" | null>(null);
   const [reconnect, setReconnect] = useState<Account | null>(null);
   const [provider, setProvider] = useState<"drive" | "dropbox" | "github">("drive");
@@ -420,6 +427,7 @@ export function CloudSyncPage() {
     try {
       const result = await api<{ id?: string }>(body);
       const refreshed = await query.refetch();
+      if (!mounted.current) return;
       setDialog(null);
       setConfirm(null);
       setConnectionId("");
@@ -436,9 +444,9 @@ export function CloudSyncPage() {
         select(nextTask?.account ?? nextAccount?.id ?? "", nextTask?.id);
       }
     } catch (e) {
-      setError((e as Error).message);
+      if (mounted.current) setError((e as Error).message);
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }
   const grantCompletion = useRef<(id?: string) => void>(() => {});
