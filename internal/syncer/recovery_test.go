@@ -36,6 +36,103 @@ func TestRecoveryRetryAndManualPause(t *testing.T) {
 	}
 }
 
+func TestTransferSizeRetryBackoffAndManualPause(t *testing.T) {
+	e := fixture(t)
+	task := addTask(t, e, "download")
+	for attempt := 0; attempt < 8; attempt++ {
+		before := time.Now().Unix()
+		e.pauseError(task.ID, transferFailure("corrupted on transfer: sizes differ 278 vs 265"))
+		tasks, err := e.tasks()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := tasks[0]
+		delay := int64(min(60*(1<<min(attempt, 5)), 1800))
+		if got.Recovery != "retry" || got.Paused != 1 || got.Status != "error" || got.RetryCount != attempt+1 || got.RetryAt < before+delay || got.RetryAt > time.Now().Unix()+delay {
+			t.Fatalf("attempt %d: %+v", attempt, got)
+		}
+	}
+	if _, err := e.taskAction("task.pause", task.ID); err != nil {
+		t.Fatal(err)
+	}
+	e.pauseError(task.ID, transferFailure("corrupted on transfer: sizes differ 278 vs 265"))
+	if err := e.initialize(); err != nil {
+		t.Fatal(err)
+	}
+	tasks, err := e.tasks()
+	if err != nil || tasks[0].Paused != 1 || tasks[0].Recovery != "" || tasks[0].RetryAt != 0 {
+		t.Fatal("manual pause overwritten", tasks, err)
+	}
+}
+
+func TestRealRcloneSizeFailureRetriesHistoryRecovery(t *testing.T) {
+	if _, err := exec.LookPath("rclone"); err != nil {
+		t.Skip("rclone unavailable")
+	}
+	e := fixture(t)
+	task := addTask(t, e, "both")
+	write := func(dir, value string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "report.md"), []byte(value), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(task.Remote, "cloud report")
+	if err := e.runTask(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+	write(task.Local, "unsent local report")
+	if _, err := e.DB.Exec("UPDATE tasks SET recovery='history',dirty=1 WHERE id=?", task.ID); err != nil {
+		t.Fatal(err)
+	}
+	syncs := 0
+	e.Runner = func(ctx context.Context, a Account, args []string, check func() error) ([]byte, error) {
+		if args[0] == "sync" {
+			syncs++
+			if syncs == 1 {
+				return nil, transferFailure(`{"level":"error","msg":"corrupted on transfer: sizes differ 1479 vs 1874"}`)
+			}
+		}
+		return e.runProcess(ctx, a, args, check)
+	}
+	next := map[string]time.Time{accountID: time.Now().Add(time.Hour)}
+	cycle := func() { e.cycle(context.Background(), next, map[string]int{}, func(bool) {}) }
+	cycle()
+	tasks, err := e.tasks()
+	if err != nil || tasks[0].Initialized != -1 || tasks[0].Recovery != "retry" || tasks[0].RetryAt == 0 || tasks[0].Error != transferSizeMessage {
+		t.Fatal("size failure did not schedule recovery", tasks, err)
+	}
+	if err := e.initialize(); err != nil {
+		t.Fatal(err)
+	}
+	cycle()
+	if syncs != 1 {
+		t.Fatal("retry ran before deadline", syncs)
+	}
+	if _, err := e.DB.Exec("UPDATE tasks SET retry_at=1 WHERE id=?", task.ID); err != nil {
+		t.Fatal(err)
+	}
+	cycle()
+	tasks, err = e.tasks()
+	if err != nil || syncs != 2 || tasks[0].Status != "idle" || tasks[0].Initialized != 1 || tasks[0].Recovery != "" || tasks[0].Paused != 0 || tasks[0].RetryAt != 0 || tasks[0].RetryCount != 0 {
+		t.Fatal("scheduled recovery failed", tasks, syncs, err)
+	}
+	for _, dir := range []string{task.Local, task.Remote} {
+		raw, err := os.ReadFile(filepath.Join(dir, "report.md"))
+		if err != nil || string(raw) != "cloud report" {
+			t.Fatal("recovery did not preserve cloud contents", string(raw), err)
+		}
+	}
+	backups, err := filepath.Glob(filepath.Join(task.Local, ".panasms-cloud-versions", "recovery-*", "report.md"))
+	if err != nil || len(backups) != 1 {
+		t.Fatal("local report backup missing", backups, err)
+	}
+	raw, err := os.ReadFile(backups[0])
+	if err != nil || string(raw) != "unsent local report" {
+		t.Fatal("local report was not preserved", string(raw), err)
+	}
+}
+
 func TestRealRcloneCloudAuthoritativeRecovery(t *testing.T) {
 	if _, err := exec.LookPath("rclone"); err != nil {
 		t.Skip("rclone unavailable")

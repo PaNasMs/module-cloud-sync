@@ -266,5 +266,9 @@
   {
     "key": "lockUnknown",
     "en": "The synchronization lock could not be verified. The task is paused to protect both folders; check the lock before retrying."
+  },
+  {
+    "key": "transferSizeMismatch",
+    "en": "A transferred file failed its size check. The task will retry automatically."
   }
 ]
