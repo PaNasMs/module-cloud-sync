@@ -28,7 +28,7 @@ import {
 import { Button, Icon, Notice, SectionNav } from "@panasms/ui";
 import { registerModule } from "@panasms/runtime";
 import { request } from "@panasms/client";
-import { useQueryValue } from "@panasms/navigation";
+import { useSearchParams } from "react-router-dom";
 import {
   registerTranslations,
   registerServerMessages,
@@ -347,11 +347,41 @@ export function CloudSyncPage() {
     refetchInterval: 2000,
   });
   const state = query.data ?? empty;
-  const [accountID, setAccountID] = useQueryValue("account");
-  const [selectedID, setSelectedID] = useQueryValue("sync");
-  const selectedTask = state.tasks.find((t) => t.id === selectedID) ??
-      state.tasks.find((t) => t.account === accountID) ?? state.tasks[0];
-  const account = state.accounts.find((a) => a.id === selectedTask?.account);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const accountID = searchParams.get("account") ?? "";
+  const selectedID = searchParams.get("sync") ?? "";
+  const accountSelection = selectedID.startsWith("account:");
+  const explicitAccountID = accountSelection ? selectedID.slice(8) : accountID;
+  const defaultSelection = !accountID && !selectedID;
+  const selectedTask =
+    (!accountSelection && state.tasks.find((task) => task.id === selectedID)) ||
+    (defaultSelection ? state.tasks[0] : undefined);
+  const account =
+    state.accounts.find((item) => item.id === (selectedTask?.account ?? explicitAccountID)) ??
+    (defaultSelection ? state.accounts[0] : undefined);
+  const select = useCallback(
+    (account: string, sync = account ? "account:" + account : "", replace = false) => {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        if (account) next.set("account", account);
+        else next.delete("account");
+        if (sync) next.set("sync", sync);
+        else next.delete("sync");
+        return next;
+      }, { replace });
+    },
+    [setSearchParams],
+  );
+  useEffect(() => {
+    if (!query.isSuccess) return;
+    if (account) {
+      const sync = selectedTask?.id ?? "account:" + account.id;
+      if (accountID !== account.id || selectedID !== sync)
+        select(account.id, sync, true);
+    } else if (!state.accounts.length && (accountID || selectedID)) {
+      select("", "", true);
+    }
+  }, [query.isSuccess, account?.id, selectedTask?.id, accountID, selectedID, state.accounts.length, select]);
   const [dialog, setDialog] = useState<"account" | "task" | null>(null);
   const [reconnect, setReconnect] = useState<Account | null>(null);
   const [provider, setProvider] = useState<"drive" | "dropbox" | "github">("drive");
@@ -389,12 +419,22 @@ export function CloudSyncPage() {
     setError("");
     try {
       const result = await api<{ id?: string }>(body);
-      await query.refetch();
+      const refreshed = await query.refetch();
       setDialog(null);
       setConfirm(null);
       setConnectionId("");
-      if (body.action === "account.save" && result.id) setAccountID(result.id);
-      if (body.action === "task.create" && result.id) setSelectedID(result.id);
+      if (body.action === "account.save" && result.id) select(result.id);
+      if (body.action === "task.create" && result.id) select(String(body.account), result.id);
+      if (body.action === "task.remove") {
+        const owner = state.tasks.find((task) => task.id === body.id)?.account;
+        if (owner) select(owner);
+      }
+      if (body.action === "account.remove") {
+        const updated = refreshed.data ?? state;
+        const nextTask = updated.tasks.find((task) => task.account !== body.id);
+        const nextAccount = updated.accounts.find((item) => item.id !== body.id);
+        select(nextTask?.account ?? nextAccount?.id ?? "", nextTask?.id);
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -426,9 +466,8 @@ export function CloudSyncPage() {
         grantId,
       });
       const refreshed = await query.refetch();
-      setAccountID(result.id);
       const existingTask = refreshed.data?.tasks.find((task) => task.account === result.id);
-      setSelectedID(existingTask?.id ?? "account:" + result.id);
+      select(result.id, existingTask?.id);
       setTaskAccount(result.id);
       if (reconnect) setDialog(null);
       else {
@@ -535,12 +574,16 @@ export function CloudSyncPage() {
       )}
       <div className="section-layout settings-page cloud-sync-settings">
         <SectionNav
-          label={tr("tasks")}
+          label={tr("title")}
           objects
           tabs={false}
           value={selectedTask?.id ?? (account ? "account:" + account.id : "")}
           onChange={(id) => {
-            setSelectedID(id);
+            if (id.startsWith("account:")) select(id.slice(8));
+            else {
+              const task = state.tasks.find((item) => item.id === id);
+              if (task) select(task.account, task.id);
+            }
             setError("");
           }}
           items={[
@@ -559,6 +602,14 @@ export function CloudSyncPage() {
                       ? ("warn" as const)
                       : ("ok" as const),
             })),
+            ...state.accounts.map((item) => ({
+              id: "account:" + item.id,
+              title: item.label,
+              group: tr("accounts"),
+              note: `${providerLabel(item.provider)} · ${tr("taskCount", {count: state.tasks.filter((task) => task.account === item.id).length})}`,
+              icon: providerIcon(item.provider),
+              tone: item.error ? ("danger" as const) : undefined,
+            })),
           ]}
           footer={
             <Button onClick={() => openAccount(null)}>
@@ -567,7 +618,6 @@ export function CloudSyncPage() {
             </Button>
           }
         />
-        {!state.tasks.length && <Notice>{tr("noTasks")}</Notice>}
         <div className="settings-content">
           <div className="general-settings">
             {account ? (
@@ -576,7 +626,7 @@ export function CloudSyncPage() {
                   <div className="page-heading">
                     <div>
                       <h2>{selectedTask?.name || account.label}</h2>
-                      <p className="muted">{account.provider === "github" ? "GitHub" : provider === "drive" ? "Google Drive" : "Dropbox"} · {account.label}</p>
+                      <p className="muted">{providerLabel(account.provider)} · {account.label}</p>
                     </div>
                     <div className="actions">
                       {selectedTask && (
@@ -710,7 +760,7 @@ export function CloudSyncPage() {
                       )}
                     </>
                   ) : (
-                    <p className="muted">{tr("noTasks")}</p>
+                    <p className="muted">{tasks.length ? tr("taskCount", {count: tasks.length}) : tr("noTasks")}</p>
                   )}
                 </section>
                 <section className="surface cloud-connection-section">
@@ -766,9 +816,9 @@ export function CloudSyncPage() {
               </>
             ) : (
               <section className="surface">
-                <h2>{tr("welcome")}</h2>
-                <p>{tr("welcomeBody")}</p>
-                <p className="muted">{tr("sleep")}</p>
+                <h2>{tr(state.accounts.length ? "selectionUnavailable" : "noAccounts")}</h2>
+                <p>{tr(state.accounts.length ? "chooseSelection" : "welcomeBody")}</p>
+                {!state.accounts.length && <Button onClick={() => openAccount(null)}>{tr("addAccount")}</Button>}
               </section>
             )}
           </div>
